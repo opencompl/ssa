@@ -11,6 +11,10 @@ lean_lib SSA {
 lean_exe mlirnatural {
   root := `SSA.MLIRNatural
 }
+
+lean_exe opt {
+  root := `SSA.Projects.InstCombine.LLVM.Opt
+}
 -- -- PROJECTS
 -- -- ========
 --

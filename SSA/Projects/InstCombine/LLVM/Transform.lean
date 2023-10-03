@@ -14,6 +14,8 @@ inductive TransformError
   | unsupportedOp
   | unsupportedType
   | generic (error : String)
+  deriving Repr
+
 
 namespace TransformError
 

@@ -4,7 +4,7 @@
  [{"git":
    {"url": "https://github.com/tydeu/lean4-partax",
     "subDir?": null,
-    "rev": "4d4362678c7e836f02ca8c975da04183bfab0bea",
+    "rev": "573a45378782b9b32af8ecbe965052b46bfccd08",
     "opts": {},
     "name": "partax",
     "inputRev?": "master",
@@ -20,7 +20,7 @@
   {"git":
    {"url": "https://github.com/mhuisi/lean4-cli.git",
     "subDir?": null,
-    "rev": "21dac2e9cc7e3cf7da5800814787b833e680b2fd",
+    "rev": "39229f3630d734af7d9cfb5937ddc6b41d3aa6aa",
     "opts": {},
     "name": "Cli",
     "inputRev?": "nightly",
