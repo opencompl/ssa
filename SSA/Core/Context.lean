@@ -107,9 +107,10 @@ theorem append_snoc (Γ Γ' : Ctxt) (t : Ty) :
 @[simp]
 theorem _root_.List.get?_append_add :
     List.get? (xs ++ ys) (i + xs.length) = List.get? ys i := by
-  induction xs
-  . rfl
-  . simp_all
+  induction xs with
+  | nil => rfl
+  | cons _ _ ih =>
+    simp [List.get?_eq_get, Nat.add_succ, ih]
 
 def Var.inl {Γ Γ' : Ctxt} {t : Ty} : Var Γ t → Var (Ctxt.append Γ Γ') t
   | ⟨v, h⟩ => ⟨v + Γ'.length, by simp[←h, append, List.get?_append_add]⟩

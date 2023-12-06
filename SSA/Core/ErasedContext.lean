@@ -88,12 +88,12 @@ in context `Γ.snoc t`. This is marked as a coercion. -/
 def toSnoc {Γ : Ctxt Ty} {t t' : Ty} (var : Var Γ t) : Var (snoc Γ t') t  :=
   ⟨var.1+1, var.2⟩
 
-@[simp]
+--@[simp]
 theorem zero_eq_last {Γ : Ctxt Ty} {t : Ty} (h) :
     ⟨0, h⟩ = last Γ t :=
   rfl
 
-@[simp]
+--@[simp]
 theorem succ_eq_toSnoc {Γ : Ctxt Ty} {t : Ty} {w} (h : (Γ.snoc t).get? (w+1) = some t') :
     ⟨w+1, h⟩ = toSnoc ⟨w, h⟩ :=
   rfl
@@ -205,8 +205,24 @@ section Valuation
 variable [Goedel Ty] -- for a valuation, we need to evaluate the Lean `Type` corresponding to a `Ty`
 
 /-- A valuation for a context. Provide a way to evaluate every variable in a context. -/
-def Valuation (Γ : Ctxt Ty) : Type :=
-  ⦃t : Ty⦄ → Γ.Var t → (toType t)
+instance : Goedel (Ctxt Ty) :=
+  ⟨fun Γ => ⦃t : Ty⦄ → Γ.Var t → (toType t)⟩
+
+abbrev Valuation (Γ : Ctxt Ty) := toType Γ
+
+instance : Goedel (List Ty) :=
+  ⟨fun Γ => Goedel.toType (show Ctxt Ty from Γ)⟩
+
+instance : Inhabited (toType (∅ : Ctxt Ty)) := ⟨fun _ v => v.emptyElim⟩
+
+/-- Make a valuation for `Γ.snoc t` from a valuation for `Γ` and an element of `t.toType`. -/
+def _root_.Goedel.toType.snoc {Γ : Ctxt Ty} {t : Ty} (s : toType Γ) (x : toType t) :
+    toType (Γ.snoc t) := by
+      intro t' v
+      revert s x
+      refine Ctxt.Var.casesOn v ?_ ?_
+      . intro _ _ _ v s _; exact s v
+      . intro _ _ _ x; exact x
 
 /-- A valuation for a context. Provide a way to evaluate every variable in a context. -/
 def Valuation.eval {Γ : Ctxt Ty} (VAL : Valuation Γ) ⦃t : Ty⦄ (v : Γ.Var t) : toType t :=
@@ -241,14 +257,19 @@ theorem Valuation.snoc_eq {Γ : Ctxt Ty} {t : Ty} (s : Γ.Valuation) (x : toType
   · rfl
 
 @[simp]
+theorem _root_.Goedel.toType.snoc_last {Γ : Ctxt Ty} {t : Ty} (s : toType Γ) (x : toType t) :
+    (s.snoc x) (Ctxt.Var.last _ _) = x := by
+  simp [Goedel.toType.snoc]
+
+@[simp]
 theorem Valuation.snoc_last {Γ : Ctxt Ty} {t : Ty} (s : Γ.Valuation) (x : toType t) :
     (s.snoc x) (Ctxt.Var.last _ _) = x := by
   simp [Ctxt.Valuation.snoc]
 
 @[simp]
-theorem Valuation.snoc_toSnoc {Γ : Ctxt Ty} {t t' : Ty} (s : Γ.Valuation) (x : toType t)
-    (v : Γ.Var t') : (s.snoc x) v.toSnoc = s v := by
-  simp [Ctxt.Valuation.snoc]
+theorem _root_.Goedel.toType.snoc_toSnoc {Γ : Ctxt Ty} {t t' : Ty}
+    (s : toType Γ) (x : toType t) (v : Γ.Var t') : (s.snoc x) v.toSnoc = s v := by
+  simp [Goedel.toType.snoc]
 
 /-- Make a a valuation for a singleton value -/
 def Valuation.singleton {t : Ty} (v : toType t) : Ctxt.Valuation [t] :=
@@ -400,5 +421,37 @@ instance : HAdd (Diff Γ₁ Γ₂) (Diff Γ₂ Γ₃) (Diff Γ₁ Γ₃) := ⟨a
 
 end Diff
 
+
+section Append
+
+def append : Ctxt Ty → Ctxt Ty → Ctxt Ty :=
+  fun xs ys => List.append ys xs
+
+@[simp]
+theorem _root_.List.get?_append_add :
+    List.get? (xs ++ ys) (i + xs.length) = List.get? ys i := by
+  induction xs with
+  | nil => rfl
+  | cons _ _ ih =>
+    simp [List.get?_eq_get, Nat.add_succ, ih]
+
+def Var.inl {Γ Γ' : Ctxt Ty} {t : Ty} : Var Γ t → Var (Ctxt.append Γ Γ') t
+  | ⟨v, h⟩ => ⟨v + Γ'.length, by simp[←h, append, List.get?_append_add]⟩
+
+def Var.inr {Γ Γ' : Ctxt Ty} {t : Ty} : Var Γ' t → Var (append Γ Γ') t
+  | ⟨v, h⟩ => ⟨v, by
+      simp[append]
+      induction Γ' generalizing v
+      case nil =>
+        contradiction
+      case cons ih =>
+        cases v
+        case zero =>
+          rw[←h]; rfl
+        case succ v =>
+          apply ih v h
+    ⟩
+
+end Append
 
 end Ctxt
