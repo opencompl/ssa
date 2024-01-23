@@ -110,6 +110,22 @@ def add {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w))
     (args := .cons e₁ <| .cons e₂ .nil)
     (regArgs := .nil)
 
+def mul {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w)) :
+    Expr InstCombine.Op Γ (InstCombine.Ty.mkBitvec w) :=
+  Expr.mk
+    (op := InstCombine.MOp.shl w)
+    (ty_eq := rfl)
+    (args := .cons e₁ <| .cons e₂ .nil)
+    (regArgs := .nil)
+
+def shl {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w)) :
+    Expr InstCombine.Op Γ (InstCombine.Ty.mkBitvec w) :=
+  Expr.mk
+    (op := InstCombine.MOp.shl w)
+    (ty_eq := rfl)
+    (args := .cons e₁ <| .cons e₂ .nil)
+    (regArgs := .nil)
+
 def icmp {Γ : Ctxt _} (w : ℕ) (pred : LLVM.IntPredicate) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w)) :
     Expr InstCombine.Op Γ (InstCombine.Ty.mkBitvec 1) :=
   Expr.mk
@@ -219,12 +235,12 @@ theorem BitVec.toInt_ofInt_1 [WGT1: Fact (w > 1)] :
   sorry
 
 open ComWrappers
-def lhs (w : ℕ) : Com InstCombine.Op [/- %X -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+def MulDivRem805_lhs (w : ℕ) : Com InstCombine.Op [/- %X -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
   /- c1 = -/ Com.lete (const w 1) <|
   /- r = -/ Com.lete (sdiv w ⟨ /- c1-/ 0, by simp[Ctxt.snoc]⟩ ⟨ /-%X -/ 1, by simp[Ctxt.snoc]⟩) <|
   Com.ret ⟨/-r-/0, by simp[Ctxt.snoc]⟩
 
-def rhs (w : ℕ) : Com InstCombine.Op [/- %X -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+def MulDivRem805_rhs (w : ℕ) : Com InstCombine.Op [/- %X -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
   /- c1 = -/ Com.lete (const w 1) <|
   /- inc = -/ Com.lete (add w ⟨ /-c1 -/0, by simp[Ctxt.snoc]⟩ ⟨/-X-/1, by simp[Ctxt.snoc]⟩) <|
   /- c3 = -/ Com.lete (const w 3) <|
@@ -234,9 +250,10 @@ def rhs (w : ℕ) : Com InstCombine.Op [/- %X -/ InstCombine.Ty.mkBitvec w] (Ins
   Com.ret ⟨/-r-/0, by simp[Ctxt.snoc]⟩
 
 def alive_simplifyMulDivRem805 (w : Nat) :
-  lhs w ⊑ rhs w := by
+  MulDivRem805_lhs w ⊑ MulDivRem805_rhs w := by
   simp only [Com.Refinement]; intros Γv
-  simp only [lhs, InstCombine.Ty.mkBitvec, const, sdiv, Ctxt.get?, Var.zero_eq_last, rhs, add, icmp, select]
+  simp only [MulDivRem805_lhs, MulDivRem805_rhs,
+    InstCombine.Ty.mkBitvec, const, sdiv, Ctxt.get?, Var.zero_eq_last, add, icmp, select]
   simp_peephole [MOp.sdiv, MOp.binary, MOp.BinaryOp.sdiv, MOp.select, MOp.select] at Γv
   intros a
   simp only [InstCombine.Op.denote, pairBind, HVector.toPair, HVector.toTuple, Function.comp_apply, HVector.toTriple, bind_assoc]
@@ -325,10 +342,10 @@ def alive_simplifyMulDivRem805_surface (w : Nat) :
 /-
 Name: MulDivRem:290
 
-%Op0 = shl 1, %Y
-%r = mul %Op0, %Op1
+%twoy = shl 1, %Y
+%r = mul %twoy, %X
   =>
-%r = shl %Op1, %Y
+%r = shl %X, %Y
 
 Proof
 ======
@@ -341,30 +358,38 @@ Proof
     ⟦LHS₂⟧: (1 << Y) . Op1 = Y >= n ? UB : ⟦LHS₁⟧
     ⟦RHS₂⟧: Op1 << Y = Y >= n ? UB : ⟦RHS₁⟧
     but ⟦LHS₁⟧ = ⟦ RHS₁⟧ and thus we are done.
-
 -/
+
+
+open ComWrappers
+def MulDivRem290_lhs (w : ℕ) :
+  Com InstCombine.Op [/- %X -/ InstCombine.Ty.mkBitvec w, /- %Y -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+  /- c1 = -/ Com.lete (const w 1) <|
+  /- twoy = -/ Com.lete (shl w ⟨ /- c1 -/ 0, by simp[Ctxt.snoc]⟩ ⟨ /-%Y -/ 1, by simp[Ctxt.snoc]⟩) <|
+  /- r = -/ Com.lete (mul w ⟨ /- twoy -/ 0, by simp[Ctxt.snoc]⟩ ⟨ /-%X -/ 2, by simp[Ctxt.snoc]⟩) <|
+  Com.ret ⟨/-r-/0, by simp[Ctxt.snoc]⟩
+
+def MulDivRem290_rhs (w : ℕ) : 
+  Com InstCombine.Op [/- %X -/ InstCombine.Ty.mkBitvec w, /- %Y -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+  /- r = -/ Com.lete (shl w ⟨/-X-/ 1, by simp[Ctxt.snoc]⟩ ⟨/-Y-/1, by simp[Ctxt.snoc]⟩) <|
+  Com.ret ⟨/-r-/0, by simp[Ctxt.snoc]⟩
+
+
 def alive_simplifyMulDivRem290 (w : Nat) :
-    [alive_icom ( w )| {
-    ^bb0(%Op1 : _ , %Y : _):
-      %v1  = "llvm.mlir.constant" () { value = 1 : _ } :() -> (_)
-      %Op0   = "llvm.shl" (%v1, %Y) : (_, _) -> (_)
-      %r = "llvm.mul"(%Op0, %Op1) : (_, _) -> (_)
-      "llvm.return" (%r) : (_) -> ()
-    }] ⊑ [alive_icom ( w )| {
-    ^bb0(%Op1 : _, %Y : _):
-      %r = "llvm.mul" (%Op1, %Y) : (_, _) -> (_)
-      "llvm.return" (%r) : (_) -> ()
-    }] := by
-  dsimp only [Com.Refinement]
-  intros Γv
-  simp [InstcombineTransformDialect.MOp.instantiateCom, InstcombineTransformDialect.instantiateMOp,
-    ConcreteOrMVar.instantiate, Vector.get, List.nthLe, List.length_singleton, Fin.coe_fin_one, Fin.zero_eta,
-    List.get_cons_zero, Function.comp_apply, InstcombineTransformDialect.instantiateMTy, Ctxt.empty_eq, Ctxt.DerivedCtxt.snoc,
-    Ctxt.DerivedCtxt.ofCtxt, List.map_eq_map, List.map, DialectMorphism.mapTy, List.get] at Γv
-
-  generalize Γv { val := 0, property := _ } = a;
-  sorry
-
+  MulDivRem290_lhs w ⊑ MulDivRem290_rhs w := by
+  simp only [Com.Refinement]; intros Γv
+  simp only [MulDivRem290_lhs, MulDivRem290_rhs,
+    InstCombine.Ty.mkBitvec, const, shl, mul, Ctxt.get?, Var.zero_eq_last, add, icmp, select]
+  simp_peephole [MOp.sdiv, MOp.binary, MOp.BinaryOp.shl, MOp.shl, MOp.mul] at Γv
+  intros a b
+  simp only [InstCombine.Op.denote, pairBind, HVector.toPair, HVector.toTuple, Function.comp_apply, HVector.toTriple, bind_assoc]
+  simp [LLVM.const?, LLVM.shl?, LLVM.mul?, Bind.bind, Option.bind]
+  cases a
+  case none => cases b <;> simp
+  case some a => 
+    cases b <;> try simp
+    case none => sorry
+    case some b => sorry
 
 end MulDivRem
 
