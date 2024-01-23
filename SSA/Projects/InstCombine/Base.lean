@@ -35,6 +35,12 @@ inductive MTy (φ : Nat)
 
 abbrev Ty := MTy 0
 
+-- Create a bitvec of width 'w'.
+-- TODO, NOTE: This cannot be called `bitvec` since it winds up being confused with `MTy.bitvec`.
+@[simp]
+abbrev Ty.mkBitvec (w : Nat) : Ty :=
+  MTy.bitvec (ConcreteOrMVar.concrete w)
+
 instance : Repr (MTy φ) where
   reprPrec
     | .bitvec (.concrete w), _ => "i" ++ repr w
