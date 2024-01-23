@@ -294,10 +294,27 @@ Name: Select:746
 
 
 Proof:
-------
+======
 
+LHS:
+---
+c = A <s 0
+minus = 0 - A  [minus = -A]
+abs = c ? A : minus [abs = c < 0 ? A : -A] [abs = -|A|]
+c2 = abs >= 0 [c2 = -|A| >= 0] [c2 = |A| < 0]
+minus2 = -abs = [minus2 = - (-|A|) = |A|)]
+abs2 = c2 ? abs : minus2 [abs2 = |A| < 0 ? _ : |A|]  [abs2 = |A|]
+
+
+RHS:
+----
+abs2 = A s> 0 ? A : -A  [abs2 = |A|]
+
+Equivalence proof:
+-------------------
+  Note that by definition |A| will always be greater than or equal to zero.
+  The main case distinction that is happening is on whether 'A <s 0',
 -/
-
 
 
 /-
@@ -311,6 +328,11 @@ Name: Select:747
   =>
 %c3 = icmp slt %A, 0
 %abs2 = select %c3, %A, %minus
+
+
+c = A s> 0
+minus = 0 - A
+abs = c ? A : minus (A > 0 ? A : -A)
 -/
 end Select
 end AliveHandwritten
