@@ -184,15 +184,18 @@ def alive_simplifyMulDivRem805 (w : Nat) :
   generalize Γv { val := 0, property := _ } = a;
   sorry
 
-  -- try simp (config := {decide := false}) only [
-  --   Int.ofNat_eq_coe, Nat.cast_zero, Ctxt.DerivedCtxt.snoc, Ctxt.DerivedCtxt.ofCtxt,
-  --   Ctxt.DerivedCtxt.ofCtxt_empty, Ctxt.Valuation.snoc_last,
-  --   Com.denote, Expr.denote, HVector.denote, Var.zero_eq_last, Var.succ_eq_toSnoc,
-  --   Ctxt.empty, Ctxt.empty_eq, Ctxt.snoc, Ctxt.Valuation.nil, Ctxt.Valuation.snoc_last,
-  --   Ctxt.ofList, Ctxt.Valuation.snoc_toSnoc,
-  --   HVector.map, HVector.toPair, HVector.toTuple, OpDenote.denote, Expr.op_mk, Expr.args_mk,
-  --   DialectMorphism.mapOp, DialectMorphism.mapTy, List.map, Ctxt.snoc, List.map]
-  -- at Γv ⊢
+/-
+Proof state from commit 'a37ebf8bb078c3406ab197a657a50988d3fd0412' for 'alive_simplifyMulDivRem805' :
+(if x0✝ = 0#w then none
+  else
+    if LLVM.ofIntInbounds w (BitVec.toInt (BitVec.ofInt w 1) / BitVec.toInt x0✝) then
+      some (BitVec.ofInt w (BitVec.toInt (BitVec.ofInt w 1) / BitVec.toInt x0✝))
+    else none) ⊑
+  match some (BitVec.ofBool (LLVM.icmp LLVM.IntPredicate.ult (BitVec.ofInt w 1 + x0✝) (BitVec.ofInt w 3))) with
+  | none => none
+  | some { toFin := { val := 1, isLt := _ } } => some x0✝
+  | some { toFin := { val := 0, isLt := _ } } => some (BitVec.ofInt w 0)
+-/
 
 
 
