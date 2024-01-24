@@ -15,6 +15,76 @@ set_option pp.proofs false
 set_option pp.proofs.withType false
 
 
+namespace BitVecTheory
+
+/- There is only one inhabitatnt of BitVec 0) -/
+instance : Subsingleton (BitVec 0) where
+  allEq v w := by
+    obtain ⟨vfin, hvlt⟩ := v
+    obtain ⟨wfin, hwlt⟩ := w
+    simp at hvlt
+    simp at hwlt
+    subst hvlt
+    subst hwlt
+    rfl
+
+-- Any bitvec of width 0 is equal to the zero bitvector
+theorem BitVec.width_zero_eq_zero (x : BitVec 0) : x = BitVec.ofNat 0 0 :=
+  Subsingleton.allEq x _
+
+@[simp]
+theorem BitVec.with_zero (x : BitVec 0) : BitVec.toInt x = 0 := by
+  rw [BitVec.width_zero_eq_zero x]
+  simp
+
+theorem BitVec.ofInt_toFin_nonneg (w : ℕ) (v : Int) {v' : ℕ} (hv : v = ↑v') :
+  (BitVec.ofInt w v).toFin = Fin.ofNat' v' (by simp) := by
+  subst hv
+  simp[BitVec.ofInt, BitVec.ofNat, BitVec.toFin]
+
+theorem BitVec.ofInt_Nat_nonneg (w : ℕ) (v : Int) {v' : ℕ} (hv : v = ↑v' := by simp) :
+  (BitVec.ofInt w v).toNat = v' % 2^w := by
+  subst hv
+  simp[BitVec.ofInt, BitVec.ofNat, BitVec.toFin, Fin.val, Fin.ofNat']
+
+-- TODO: what is a nice way to package up this kind of proof engineering?
+-- Should I use Fact?
+theorem BitVec.ofInt_Nat_nonneg_inbounds (w : ℕ) (v : Int) {v' : ℕ} (hv : v = ↑v' := by simp) (hinbounds: v' < 2^w := by simp; linarith) :
+  (BitVec.ofInt w v).toNat = v' := by
+  subst hv
+  simp[BitVec.ofInt, BitVec.ofNat, BitVec.toFin, Fin.val, Fin.ofNat']
+  apply Nat.mod_eq_of_lt hinbounds
+
+@[simp]
+theorem BitVec.toInt_width_zero (x : BitVec 0) : BitVec.toInt x = 0 := by
+  rw [BitVec.width_zero_eq_zero x]
+  simp
+
+@[simp]
+theorem BitVec.toFin_width_zero (x : BitVec 0) : BitVec.toInt x = 0 := by
+  cases x
+  case ofFin v =>
+  simp [BitVec.toFin]
+
+theorem BitVec.toInt_ofInt_width_one_one : BitVec.toInt (BitVec.ofInt 1 1) = -1 := rfl
+
+theorem BitVec.toInt_ofInt_1 [WGT1: Fact (w > 1)] :
+    BitVec.toInt (BitVec.ofInt w 1) = 1 := by
+  simp[BitVec.toInt, BitVec.ofInt]
+  simp[BitVec.msb, BitVec.getMsb, BitVec.getLsb]
+  have h0ltw : 0 < w := by have _ := WGT1.out; linarith
+  simp [h0ltw]
+  sorry
+
+@[simp]
+theorem BitVec.ofNat_toNat_zero :
+BitVec.toNat (BitVec.ofInt w 0) = 0 :=
+  by simp[BitVec.toNat, BitVec.ofInt, BitVec.toFin, BitVec.ofNat, OfNat.ofNat]
+
+
+
+end BitVecTheory
+
 namespace DivRemOfSelect
 
 /-
@@ -41,11 +111,6 @@ def alive_DivRemOfSelect_tgt (w : Nat) :=
     %v1 = "llvm.udiv" (%x,%y) : (_, _) -> (_)
     "llvm.return" (%v1) : (_) -> ()
   }]
-
-@[simp]
-theorem BitVec.ofNat_toNat_zero :
-BitVec.toNat (BitVec.ofInt w 0) = 0 :=
-  by simp[BitVec.toNat, BitVec.ofInt, BitVec.toFin, BitVec.ofNat, OfNat.ofNat]
 
 theorem alive_DivRemOfSelect (w : Nat) :
     alive_DivRemOfSelect_src w ⊑ alive_DivRemOfSelect_tgt w := by
@@ -110,6 +175,14 @@ def add {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w))
     (args := .cons e₁ <| .cons e₂ .nil)
     (regArgs := .nil)
 
+def sub {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w)) :
+    Expr InstCombine.Op Γ (InstCombine.Ty.mkBitvec w) :=
+  Expr.mk
+    (op := InstCombine.MOp.sub w)
+    (ty_eq := rfl)
+    (args := .cons e₁ <| .cons e₂ .nil)
+    (regArgs := .nil)
+
 def mul {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w)) :
     Expr InstCombine.Op Γ (InstCombine.Ty.mkBitvec w) :=
   Expr.mk
@@ -122,6 +195,22 @@ def shl {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w))
     Expr InstCombine.Op Γ (InstCombine.Ty.mkBitvec w) :=
   Expr.mk
     (op := InstCombine.MOp.shl w)
+    (ty_eq := rfl)
+    (args := .cons e₁ <| .cons e₂ .nil)
+    (regArgs := .nil)
+
+def lshr {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w)) :
+    Expr InstCombine.Op Γ (InstCombine.Ty.mkBitvec w) :=
+  Expr.mk
+    (op := InstCombine.MOp.lshr w)
+    (ty_eq := rfl)
+    (args := .cons e₁ <| .cons e₂ .nil)
+    (regArgs := .nil)
+
+def xor {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w)) :
+    Expr InstCombine.Op Γ (InstCombine.Ty.mkBitvec w) :=
+  Expr.mk
+    (op := InstCombine.MOp.xor w)
     (ty_eq := rfl)
     (args := .cons e₁ <| .cons e₂ .nil)
     (regArgs := .nil)
@@ -185,55 +274,7 @@ Proof:
               = 0
  Thus, LHS and RHS agree on values.
 -/
-
-/-- If the value 'v' is nonnegative, then the value of `(Bitvec.ofInt v w).toFin` equals that of `Fin.ofNat` of that value -/
-
-/- There is only one inhabitatnt of BitVec 0) -/
-instance : Subsingleton (BitVec 0) where
-  allEq v w := by
-    obtain ⟨vfin, hvlt⟩ := v
-    obtain ⟨wfin, hwlt⟩ := w
-    simp at hvlt
-    simp at hwlt
-    subst hvlt
-    subst hwlt
-    rfl
-
--- Any bitvec of width 0 is equal to the zero bitvector
-theorem BitVec.width_zero_eq_zero (x : BitVec 0) : x = BitVec.ofNat 0 0 :=
-  Subsingleton.allEq x _
-
-@[simp]
-theorem BitVec.with_zero (x : BitVec 0) : BitVec.toInt x = 0 := by
-  rw [BitVec.width_zero_eq_zero x]
-  simp
-
-theorem BitVec.ofInt_toFin_nonneg (w : ℕ) (v : Int) {v' : ℕ} (hv : v = ↑v') :
-  (BitVec.ofInt w v).toFin = Fin.ofNat' v' (by simp) := by
-  subst hv
-  simp[BitVec.ofInt, BitVec.ofNat, BitVec.toFin]
-
-@[simp]
-theorem BitVec.toInt_width_zero (x : BitVec 0) : BitVec.toInt x = 0 := by
-  rw [BitVec.width_zero_eq_zero x]
-  simp
-
-@[simp]
-theorem BitVec.toFin_width_zero (x : BitVec 0) : BitVec.toInt x = 0 := by
-  cases x
-  case ofFin v =>
-  simp [BitVec.toFin]
-
-theorem BitVec.toInt_ofInt_width_one_one : BitVec.toInt (BitVec.ofInt 1 1) = -1 := rfl
-
-theorem BitVec.toInt_ofInt_1 [WGT1: Fact (w > 1)] :
-    BitVec.toInt (BitVec.ofInt w 1) = 1 := by
-  simp[BitVec.toInt, BitVec.ofInt]
-  simp[BitVec.msb, BitVec.getMsb, BitVec.getLsb]
-  have h0ltw : 0 < w := by have _ := WGT1.out; linarith
-  simp [h0ltw]
-  sorry
-
+open BitVecTheory
 open ComWrappers
 def MulDivRem805_lhs (w : ℕ) : Com InstCombine.Op [/- %X -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
   /- c1 = -/ Com.lete (const w 1) <|
@@ -274,70 +315,6 @@ def alive_simplifyMulDivRem805 (w : Nat) :
       case succ w' =>
         simp [HDiv.hDiv, instHDiv, Div.div, Int.ediv]
         sorry -- how to actually perform the case split here?
-
--- %inc = add %X, 1
--- %c = icmp ult %inc, 3
--- %r = select %c, %X, 0
-set_option pp.analyze true in
-def alive_simplifyMulDivRem805_surface (w : Nat) :
-    [alive_icom ( w )| {
-    ^bb0(%X : _):
-      %v1  = "llvm.mlir.constant" () { value = 1 : _ } :() -> (_)
-      %r   = "llvm.sdiv" (%v1, %X) : (_, _) -> (_)
-      "llvm.return" (%r) : (_) -> ()
-    }] ⊑ [alive_icom ( w )| {
-    ^bb0(%X : _):
-      %v1  = "llvm.mlir.constant" () { value = 1 : _ } :() -> (_)
-      %inc = "llvm.add" (%v1,%X) : (_, _) -> (_)
-      %v3  = "llvm.mlir.constant" () { value = 3 : _ } :() -> (_)
-      %c   = "llvm.icmp.ult" (%inc, %v3) : (_, _) -> (i1)
-      %v0  = "llvm.mlir.constant" () { value = 0 : _ } :() -> (_)
-      %r = "llvm.select" (%c, %X, %v0) : (i1, _, _) -> (_)
-      "llvm.return" (%r) : (_) -> ()
-    }] := by
-  intros Γv
-  change Ctxt.Valuation [InstCombine.MTy.bitvec (ConcreteOrMVar.concrete w)] at Γv
-  dsimp only [Com.Refinement]
-  /-
-  simp (config := {decide := false}) only [
-    InstcombineTransformDialect.MOp.instantiateCom, InstcombineTransformDialect.instantiateMOp,
-    ConcreteOrMVar.instantiate, Vector.get, List.nthLe, List.length_singleton, Var.toSnoc, Fin.coe_fin_one, Fin.zero_eta,
-    List.get_cons_zero, Function.comp_apply, InstcombineTransformDialect.instantiateMTy, Ctxt.empty_eq, Ctxt.DerivedCtxt.snoc,
-    Ctxt.DerivedCtxt.ofCtxt, List.map_eq_map, List.map, DialectMorphism.mapTy, List.get,
-    Int.ofNat_eq_coe, Nat.cast_zero, Ctxt.DerivedCtxt.snoc, Ctxt.DerivedCtxt.ofCtxt,
-    Ctxt.DerivedCtxt.ofCtxt_empty, Ctxt.Valuation.snoc_last,
-    Com.denote, Expr.denote, HVector.denote, Var.zero_eq_last, Var.succ_eq_toSnoc,
-    Ctxt.empty, Ctxt.empty_eq, Ctxt.snoc, Ctxt.Valuation.nil, Ctxt.Valuation.snoc_last,
-    Ctxt.ofList, Ctxt.Valuation.snoc_toSnoc,
-    HVector.map, HVector.toPair, HVector.toTuple, OpDenote.denote, Expr.op_mk, Expr.args_mk,
-    DialectMorphism.mapOp, DialectMorphism.mapTy, List.map, Ctxt.snoc, List.map,
-    -- extra lemmas
-    OpDenote.denote,
-    InstCombine.Op.denote, HVector.toPair, HVector.toTriple, pairMapM, BitVec.Refinement,
-    bind, Option.bind, pure, Ctxt.DerivedCtxt.ofCtxt, Ctxt.DerivedCtxt.snoc,
-    Ctxt.snoc,
-    ConcreteOrMVar.instantiate, Vector.get, HVector.toSingle,
-    LLVM.and?, LLVM.or?, LLVM.xor?, LLVM.add?, LLVM.sub?,
-    LLVM.mul?, LLVM.udiv?, LLVM.sdiv?, LLVM.urem?, LLVM.srem?,
-    LLVM.sshr, LLVM.lshr?, LLVM.ashr?, LLVM.shl?, LLVM.select?,
-    LLVM.const?, LLVM.icmp?,
-    HVector.toTuple, List.nthLe, bitvec_minus_one,
-    DialectMorphism.mapTy,
-    InstcombineTransformDialect.instantiateMTy,
-    InstcombineTransformDialect.instantiateMOp,
-    InstcombineTransformDialect.MOp.instantiateCom,
-    InstcombineTransformDialect.instantiateCtxt,
-    ConcreteOrMVar.instantiate, Com.Refinement,
-    DialectMorphism.mapTy,
-    List.get, InstcombineTransformDialect.MOp.instantiateCom, InstcombineTransformDialect.instantiateMOp,
-    ConcreteOrMVar.instantiate, Vector.get, List.nthLe, List.length_singleton, Fin.coe_fin_one, Fin.zero_eta,
-    List.get_cons_zero, Function.comp_apply, InstcombineTransformDialect.instantiateMTy, Ctxt.empty_eq, Ctxt.DerivedCtxt.snoc,
-    Ctxt.DerivedCtxt.ofCtxt, List.map_eq_map, List.map, DialectMorphism.mapTy, List.get]
-  simp [pairBind, Nat.cast_one, Ctxt.get?, List.length_singleton, Ctxt.empty_eq, Ctxt.DerivedCtxt.snoc,
-    Ctxt.DerivedCtxt.ofCtxt, Ctxt.DerivedCtxt.ofCtxt_empty, Fin.zero_eta, List.map_cons, List.map_nil, zero_add,
-    Var.succ_eq_toSnoc, Var.zero_eq_last, Ctxt.Valuation.snoc_toSnoc, BitVec.ofNat_eq_ofNat, Nat.cast_ofNat]
-  -/
-  sorry
 
 /-
 Name: MulDivRem:290
@@ -393,7 +370,8 @@ def alive_simplifyMulDivRem290 (w : Nat) :
       split_ifs <;> simp
       case neg =>
         -- ⊢ BitVec.coeWidth (BitVec.coeWidth (BitVec.ofInt w 1 <<< x) <<< y) = BitVec.coeWidth (y <<< x)
-       sorry
+        simp[HShiftLeft.hShiftLeft, BitVec.instHShiftLeftBitVecNat, ShiftLeft.shiftLeft, Std.BitVec.shiftLeft]
+        sorry
 end MulDivRem
 
 
@@ -404,10 +382,38 @@ Name: AndOrXor:2515   ((X^C1) >> C2)^C3 -> (X>>C2) ^ ((C1>>C2)^C3)
 %op0 = lshr %e1, C2
 %r   = xor %op0, C3
   =>
-%0 = lshr %x, C2
-%r = xor %0, lshr(C1,C2)^C3
+%o = lshr %x, C2 -- (X>>C2)
+%p = lshr(%C1,%C2)
+%q = xor %p, %C3 -- ((C1>>C2)^C3)
+%r = xor %o, %q
+-/
+
+open ComWrappers
+def AndOrXor2515_lhs (w : ℕ):
+  Com InstCombine.Op
+    [/- C1 -/ InstCombine.Ty.mkBitvec w,
+     /- C2 -/ InstCombine.Ty.mkBitvec w,
+     /- C3 -/ InstCombine.Ty.mkBitvec w,
+     /- %X -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+  /- e1  = -/ Com.lete (xor w ⟨/-x-/ 0, by simp[Ctxt.snoc]⟩ ⟨ /-C1-/ 3, by simp[Ctxt.snoc]⟩) <|
+  /- op0 = -/ Com.lete (lshr w ⟨/-e1-/ 0, by simp[Ctxt.snoc]⟩ ⟨ /-C2-/ 3, by simp[Ctxt.snoc]⟩) <|
+  /- r   = -/ Com.lete (xor w ⟨/-op0-/ 0, by simp[Ctxt.snoc]⟩ ⟨ /-C3-/ 3, by simp[Ctxt.snoc]⟩) <|
+  Com.ret ⟨/-r-/0, by simp[Ctxt.snoc]⟩
+
+def AndOrXor2515_rhs (w : ℕ) :
+  Com InstCombine.Op
+    [/- C1 -/ InstCombine.Ty.mkBitvec w,
+     /- C2 -/ InstCombine.Ty.mkBitvec w,
+     /- C3 -/ InstCombine.Ty.mkBitvec w,
+     /- %X -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+  /- o = -/ Com.lete (lshr w ⟨/-X-/ 1, by simp[Ctxt.snoc]⟩ ⟨/-C2-/2, by simp[Ctxt.snoc]⟩) <|
+  /- p = -/ Com.lete (lshr w ⟨/-C1-/ 4, by simp[Ctxt.snoc]⟩ ⟨/-C2-/3, by simp[Ctxt.snoc]⟩) <|
+  /- q = -/ Com.lete (lshr w ⟨/-p-/0, by simp[Ctxt.snoc]⟩ ⟨/-C3-/3, by simp[Ctxt.snoc]⟩) <|
+  /- r = -/ Com.lete (xor w ⟨/-o-/2, by simp[Ctxt.snoc]⟩ ⟨/-q-/0, by simp[Ctxt.snoc]⟩) <|
+  Com.ret ⟨/-r-/0, by simp[Ctxt.snoc]⟩
 
 
+/-
 Proof:
 ------
   bitwise reasoning.
@@ -443,16 +449,45 @@ Name: Select:746
 %minus2 = sub 0, %abs
 %abs2 = select %c2, %abs, %minus2
   =>
+%c = icmp slt %A, 0
+%minus = sub 0, %A
+%abs = select %c, %A, %minus
 %c3 = icmp sgt %A, 0
 %abs2 = select %c3, %A, %minus
+-/
+
+open ComWrappers
+def Select746_lhs (w : ℕ):
+  Com InstCombine.Op
+    [/- A -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+  /- c0     = -/ Com.lete (const w 0) <|
+  /- c      = -/ Com.lete (icmp w .slt ⟨/-A-/ 1, by simp[Ctxt.snoc]⟩ ⟨ /-c0-/ 0, by simp[Ctxt.snoc]⟩) <|
+  /- minus  = -/ Com.lete (sub w ⟨/-c0-/ 1, by simp[Ctxt.snoc]⟩ ⟨ /-A-/ 2, by simp[Ctxt.snoc]⟩) <|
+  /- abs    = -/ Com.lete (select w ⟨/-c-/ 1, by simp[Ctxt.snoc]⟩ ⟨/-A-/ 3, by simp[Ctxt.snoc]⟩ ⟨/-minus-/ 0, by simp[Ctxt.snoc]⟩) <|
+  /- c2     = -/ Com.lete (icmp w .sgt ⟨/-abs-/ 0, by simp[Ctxt.snoc]⟩ ⟨ /-c0-/ 3, by simp[Ctxt.snoc]⟩) <|
+  /- minus2 = -/ Com.lete (sub w ⟨/-c0-/ 4, by simp[Ctxt.snoc]⟩ ⟨ /-abs-/ 1, by simp[Ctxt.snoc]⟩) <|
+  /- abs2   = -/ Com.lete (select w ⟨/-c2-/ 1, by simp[Ctxt.snoc]⟩ ⟨/-abs-/ 2, by simp[Ctxt.snoc]⟩ ⟨/-minus2-/ 0, by simp[Ctxt.snoc]⟩) <|
+  Com.ret ⟨/-r-/0, by simp[Ctxt.snoc]⟩
 
 
+def Select746_rhs (w : ℕ):
+  Com InstCombine.Op
+    [/- A -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+  /- c0     = -/ Com.lete (const w 0) <|
+  /- c      = -/ Com.lete (icmp w .slt ⟨/-A-/ 1, by simp[Ctxt.snoc]⟩ ⟨ /-c0-/ 0, by simp[Ctxt.snoc]⟩) <|
+  /- minus  = -/ Com.lete (sub w ⟨/-c0-/ 1, by simp[Ctxt.snoc]⟩ ⟨ /-A-/ 2, by simp[Ctxt.snoc]⟩) <|
+  /- abs    = -/ Com.lete (select w ⟨/-c-/ 1, by simp[Ctxt.snoc]⟩ ⟨/-A-/ 3, by simp[Ctxt.snoc]⟩ ⟨/-minus-/ 0, by simp[Ctxt.snoc]⟩) <|
+  /- c3     = -/ Com.lete (icmp w .sgt ⟨/-A-/ 4, by simp[Ctxt.snoc]⟩ ⟨ /-c0-/ 3, by simp[Ctxt.snoc]⟩) <|
+  /- abs2   = -/ Com.lete (select w ⟨/-c3-/ 0, by simp[Ctxt.snoc]⟩ ⟨/-A-/ 5, by simp[Ctxt.snoc]⟩ ⟨/-minus-/ 2, by simp[Ctxt.snoc]⟩) <|
+  Com.ret ⟨/-r-/0, by simp[Ctxt.snoc]⟩
+
+/-
 Proof:
 ======
 
 LHS:
 ---
-c = A <s 0
+c = A <_s 0
 minus = 0 - A  [minus = -A]
 abs = c ? A : minus [abs = c < 0 ? A : -A] [abs = -|A|]
 c2 = abs >= 0 [c2 = -|A| >= 0] [c2 = |A| < 0]
@@ -462,12 +497,12 @@ abs2 = c2 ? abs : minus2 [abs2 = |A| < 0 ? _ : |A|]  [abs2 = |A|]
 
 RHS:
 ----
-abs2 = A s> 0 ? A : -A  [abs2 = |A|]
+abs2 = A >_s 0 ? A : -A  [abs2 = |A|]
 
 Equivalence proof:
 -------------------
   Note that by definition |A| will always be greater than or equal to zero.
-  The main case distinction that is happening is on whether 'A <s 0',
+  The main case distinction that is happening is on whether 'A <_s 0',
 -/
 
 
