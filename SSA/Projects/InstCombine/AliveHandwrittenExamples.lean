@@ -342,16 +342,16 @@ def alive_simplifyMulDivRem805_surface (w : Nat) :
 /-
 Name: MulDivRem:290
 
-%twoy = shl 1, %Y
-%r = mul %twoy, %X
+%poty = shl 1, %Y
+%r = mul %poty, %X
   =>
 %r = shl %X, %Y
 
 Proof
 ======
   1. Without taking UB into account
-    ⟦LHS₁⟧: (1 << Y) . Op1 = (1 . 2^Y) X = 2^Y . Op1
-    ⟦RHS₁⟧: Op1 << Y = Op1 . 2^Y
+    ⟦LHS₁⟧: (1 << Y) . X = ( 2^Y) X = 2^Y . X
+    ⟦RHS₁⟧: X << Y = X . 2^Y
     equal by ring.
 
   2. With UB into account
@@ -360,18 +360,17 @@ Proof
     but ⟦LHS₁⟧ = ⟦ RHS₁⟧ and thus we are done.
 -/
 
-
 open ComWrappers
 def MulDivRem290_lhs (w : ℕ) :
   Com InstCombine.Op [/- %X -/ InstCombine.Ty.mkBitvec w, /- %Y -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
   /- c1 = -/ Com.lete (const w 1) <|
-  /- twoy = -/ Com.lete (shl w ⟨ /- c1 -/ 0, by simp[Ctxt.snoc]⟩ ⟨ /-%Y -/ 1, by simp[Ctxt.snoc]⟩) <|
-  /- r = -/ Com.lete (mul w ⟨ /- twoy -/ 0, by simp[Ctxt.snoc]⟩ ⟨ /-%X -/ 2, by simp[Ctxt.snoc]⟩) <|
+  /- poty = -/ Com.lete (shl w ⟨ /- c1 -/ 0, by simp[Ctxt.snoc]⟩ ⟨ /-%Y -/ 1, by simp[Ctxt.snoc]⟩) <|
+  /- r = -/ Com.lete (mul w ⟨ /- poty -/ 0, by simp[Ctxt.snoc]⟩ ⟨ /-%X -/ 3, by simp[Ctxt.snoc]⟩) <|
   Com.ret ⟨/-r-/0, by simp[Ctxt.snoc]⟩
 
-def MulDivRem290_rhs (w : ℕ) : 
+def MulDivRem290_rhs (w : ℕ) :
   Com InstCombine.Op [/- %X -/ InstCombine.Ty.mkBitvec w, /- %Y -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
-  /- r = -/ Com.lete (shl w ⟨/-X-/ 1, by simp[Ctxt.snoc]⟩ ⟨/-Y-/1, by simp[Ctxt.snoc]⟩) <|
+  /- r = -/ Com.lete (shl w ⟨/-X-/ 1, by simp[Ctxt.snoc]⟩ ⟨/-Y-/0, by simp[Ctxt.snoc]⟩) <|
   Com.ret ⟨/-r-/0, by simp[Ctxt.snoc]⟩
 
 
@@ -381,16 +380,20 @@ def alive_simplifyMulDivRem290 (w : Nat) :
   simp only [MulDivRem290_lhs, MulDivRem290_rhs,
     InstCombine.Ty.mkBitvec, const, shl, mul, Ctxt.get?, Var.zero_eq_last, add, icmp, select]
   simp_peephole [MOp.sdiv, MOp.binary, MOp.BinaryOp.shl, MOp.shl, MOp.mul] at Γv
-  intros a b
+  intros x y
   simp only [InstCombine.Op.denote, pairBind, HVector.toPair, HVector.toTuple, Function.comp_apply, HVector.toTriple, bind_assoc]
   simp [LLVM.const?, LLVM.shl?, LLVM.mul?, Bind.bind, Option.bind]
-  cases a
-  case none => cases b <;> simp
-  case some a => 
-    cases b <;> try simp
-    case none => sorry
-    case some b => sorry
-
+  cases x
+  case none => cases y <;> simp
+  case some x =>
+    cases y <;> try simp
+    case none =>
+      split_ifs <;> simp
+    case some y =>
+      split_ifs <;> simp
+      case neg =>
+        -- ⊢ BitVec.coeWidth (BitVec.coeWidth (BitVec.ofInt w 1 <<< x) <<< y) = BitVec.coeWidth (y <<< x)
+       sorry
 end MulDivRem
 
 
@@ -487,4 +490,3 @@ abs = c ? A : minus (A > 0 ? A : -A)
 -/
 end Select
 end AliveHandwritten
-
