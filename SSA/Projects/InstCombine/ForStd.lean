@@ -69,9 +69,6 @@ end Refinement
 infix:50 (priority:=low) " ⊑ " => Refinement
 instance : Coe Bool (BitVec 1) := ⟨ofBool⟩
 
-def coeWidth {m n : Nat} : BitVec m → BitVec n
-  | x => BitVec.ofNat n x.toNat
-
 -- not sure what the right `Coe`is for this case
 -- See: https://leanprover-community.github.io/mathlib4_docs/Init/Coe.html#Important-typeclasses
 --instance {m n: Nat} : CoeTail (BitVec m) (BitVec n) := ⟨BitVec.coeWidth⟩

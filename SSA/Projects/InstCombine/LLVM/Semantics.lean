@@ -73,9 +73,14 @@ def intMin (w : Nat) : BitVec w :=
 def intMax (w : Nat) : BitVec w :=
   BitVec.ofInt w ↑(2^(w-1) - 1)
 
-def ofIntInbounds (w : Nat) (v : Int) : Prop := v >= (intMin w).toInt && v < (intMax w).toInt
+def BitVec.isIntInbounds? (w : Nat) (v : Int) : Prop := v >= (intMin w).toInt && v < (intMax w).toInt
 
-instance : Decidable (ofIntInbounds w v) := inferInstanceAs (Decidable (v >= (intMin w).toInt && v < (intMax w).toInt))
+instance : Decidable (BitVec.isIntInbounds? w v) := inferInstanceAs (Decidable (v >= (intMin w).toInt && v < (intMax w).toInt))
+
+def BitVec.ofIntInbounds? (w : Nat) (i : Int) : Option (BitVec w) :=
+  if BitVec.isIntInbounds? w i
+  then some <| BitVec.ofInt w i
+  else none
 
 /--
 The value produced is the signed integer quotient of the two operands rounded towards zero.
@@ -88,10 +93,7 @@ def sdiv? {w : Nat} (x y : BitVec w) : Option <| BitVec w :=
   then none
   else
     let div := (x.toInt / y.toInt)
-    if ofIntInbounds w div
-      then some <| BitVec.ofInt w div
-      else none
-
+    BitVec.ofIntInbounds? w div
 
 theorem intMin_minus_one {w : Nat} : (intMin w - 1) = intMax w :=
  --by simp [intMin, BitVec.toInt]
@@ -147,10 +149,7 @@ def srem? {w : Nat} (x y : BitVec w) : Option <| BitVec w :=
   if y.toInt = 0
   then none -- Taking the remainder of a division by zero is undefined behavior.
   else
-    let div := (x.toInt / y.toInt)
-    if ofIntInbounds w div
-      then some <| BitVec.ofInt w (x.toInt.rem y.toInt)
-      else none
+    BitVec.ofIntInbounds? w (x.toInt / y.toInt)
 
 def sshr (a : BitVec n) (s : Nat) := BitVec.sshiftRight a s
 
@@ -159,11 +158,12 @@ Shift left instruction.
 The value produced is op1 * 2^op2 mod 2n, where n is the width of the result.
 If op2 is (statically or dynamically) equal to or larger than the number of
 bits in op1, this instruction returns a poison value.
+
 -/
 def shl? {m n k} (op1 : BitVec n) (op2 : BitVec m) : Option (BitVec k) :=
   let bits := op2.toNat -- should this be toInt?
   if bits >= n then .none
-  else .some <| BitVec.coeWidth (op1 <<< op2)
+  else .some <| BitVec.zeroExtend k (op1 <<< op2)
 
 /--
 This instruction always performs a logical shift right operation.
@@ -178,7 +178,7 @@ Corresponds to `Std.BitVec.ushiftRight` in the `some` case.
 def lshr? {m n k} (op1 : BitVec n) (op2 : BitVec m) : Option (BitVec k) :=
   let bits := op2.toNat -- should this be toInt?
   if bits >= n then .none
-  else .some <| BitVec.coeWidth (op1 >>> op2)
+  else .some <| BitVec.zeroExtend k (op1 >>> op2)
 
 
 /--
@@ -193,7 +193,7 @@ Corresponds to `Std.BitVec.sshiftRight` in the `some` case.
 def ashr? {m n k} (op1 : BitVec n) (op2 : BitVec m) : Option (BitVec k) :=
   let bits := op2.toNat -- should this be toInt?
   if bits >= n then .none
-  else .some <| BitVec.coeWidth (op1 >>>ₛ op2)
+  else .some <| BitVec.zeroExtend k (op1 >>>ₛ op2)
 
 /--
  If the condition is an i1 and it evaluates to 1, the instruction returns the first value argument; otherwise, it returns the second value argument.
@@ -203,8 +203,8 @@ def ashr? {m n k} (op1 : BitVec n) (op2 : BitVec m) : Option (BitVec k) :=
 def select? {w : Nat} (c? : Option (BitVec 1)) (x? y? : Option (BitVec w)) : Option (BitVec w) :=
   match c? with
   | .none => .none
-  | .some true => x?
-  | .some false => y?
+  | .some 1 => x?
+  | .some 0 => y?
 
 inductive IntPredicate where
   | eq
