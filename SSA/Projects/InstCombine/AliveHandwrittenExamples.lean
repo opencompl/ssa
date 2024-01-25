@@ -1,3 +1,6 @@
+import Std.Data.Nat.Lemmas
+import Std.Data.Int.Lemmas
+import SSA.Projects.InstCombine.FromStd
 import SSA.Projects.InstCombine.LLVM.EDSL
 import SSA.Projects.InstCombine.AliveStatements
 import SSA.Projects.InstCombine.Refinement
@@ -42,6 +45,14 @@ theorem BitVec.ofInt_toFin_nonneg (w : ℕ) (v : Int) {v' : ℕ} (hv : v = ↑v'
   subst hv
   simp[BitVec.ofInt, BitVec.ofNat, BitVec.toFin]
 
+@[simp]
+theorem BitVec.toNat_ofInt_1 [WNEQ0 : Fact (0 < w)] : BitVec.toNat (BitVec.ofInt w 1) = 1 := by
+  simp[BitVec.ofNat, BitVec.toNat, BitVec.ofInt, BitVec.toFin, Fin.val, Fin.ofNat']
+  apply Nat.mod_eq_of_lt
+  cases w
+  . exfalso; simp only[] at WNEQ0; apply Fact.elim WNEQ0
+  . simp
+
 theorem BitVec.ofInt_Nat_nonneg (w : ℕ) (v : Int) {v' : ℕ} (hv : v = ↑v' := by simp) :
   (BitVec.ofInt w v).toNat = v' % 2^w := by
   subst hv
@@ -66,15 +77,60 @@ theorem BitVec.toFin_width_zero (x : BitVec 0) : BitVec.toInt x = 0 := by
   case ofFin v =>
   simp [BitVec.toFin]
 
+@[simp]
 theorem BitVec.toInt_ofInt_width_one_one : BitVec.toInt (BitVec.ofInt 1 1) = -1 := rfl
 
-theorem BitVec.toInt_ofInt_1 [WGT1: Fact (w > 1)] :
+@[simp]
+theorem BitVec.toInt_ofInt_1_width_zero :
+    BitVec.toInt (BitVec.ofInt (n := 0) 1) = 0 := rfl
+
+
+@[simp]
+theorem BitVec.toInt_ofInt_1_width_one :
+    BitVec.toInt (BitVec.ofInt (n := 1) 1) = -1 := rfl
+
+-- if w = 0. then value is 0
+-- if w = 1, then value is -1.
+@[simp]
+theorem BitVec.toInt_ofInt_1 [hone_lt_w: Fact (1 < w)] :
     BitVec.toInt (BitVec.ofInt w 1) = 1 := by
-  simp[BitVec.toInt, BitVec.ofInt]
-  simp[BitVec.msb, BitVec.getMsb, BitVec.getLsb]
-  have h0ltw : 0 < w := by have _ := WGT1.out; linarith
-  simp [h0ltw]
-  sorry
+  cases w
+  case zero => simp at hone_lt_w; apply False.elim hone_lt_w.out
+  case succ w' =>
+    cases w'
+    case zero => simp at hone_lt_w; apply False.elim hone_lt_w.out
+    case succ w'' =>
+      simp[BitVec.toInt, BitVec.ofInt]
+      simp[BitVec.msb, BitVec.getMsb, BitVec.getLsb]
+      have hone : 1 % 2^(Nat.succ (Nat.succ w'')) = 1 := by
+        apply Nat.mod_eq_of_lt; simp
+      rw[hone, Nat.land_comm, Nat.and_one_is_mod]
+      rw[Nat.pow_mod, Nat.mod_self]
+      cases w''
+      case zero =>
+        simp
+      case succ w'' =>
+        rw[Nat.zero_pow (by simp)]
+        rw[Nat.zero_mod]
+        simp
+        apply Int.emod_eq_of_lt <;> try simp
+        . apply one_lt_pow; simp; linarith
+
+
+@[simp]
+theorem BitVec.toNat_ofInt_one_width_zero : BitVec.toNat (BitVec.ofInt (n := 0) 1) = 0 := rfl
+
+@[simp]
+theorem BitVec.toNat_ofInt_one_width_one : BitVec.toNat (BitVec.ofInt (n := 1) 1) = 1 := rfl
+
+@[simp]
+theorem BitVec.toNat_ofInt_one [hzero_lt_w: Fact (0 < w)] : BitVec.toNat (BitVec.ofInt w 1) = 1 := by
+  cases w
+  case zero => simp at hzero_lt_w; apply False.elim hzero_lt_w.out
+  case succ w' =>
+      simp[BitVec.toNat, BitVec.ofInt]
+      simp[Fin.val, BitVec.ofNat]
+      apply Nat.mod_eq_of_lt; simp
 
 @[simp]
 theorem BitVec.ofNat_toNat_zero :
@@ -186,7 +242,7 @@ def sub {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w))
 def mul {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w)) :
     Expr InstCombine.Op Γ (InstCombine.Ty.mkBitvec w) :=
   Expr.mk
-    (op := InstCombine.MOp.shl w)
+    (op := InstCombine.MOp.mul w)
     (ty_eq := rfl)
     (args := .cons e₁ <| .cons e₂ .nil)
     (regArgs := .nil)
@@ -314,7 +370,15 @@ def alive_simplifyMulDivRem805 (w : Nat) :
         simp
       case succ w' =>
         simp [HDiv.hDiv, instHDiv, Div.div, Int.ediv]
-        sorry -- how to actually perform the case split here?
+        have wlt0 : Fact (0 < Nat.succ w') := Fact.mk (by simp)
+        cases w'
+        case zero =>
+          simp;
+          sorry
+        case succ w'' =>
+          have wlt1 : Fact (1 < Nat.succ (Nat.succ w'')) := Fact.mk (by simp)
+          rw [BitVec.toInt_ofInt_1]
+          sorry -- how to actually perform the case split here?
 
 /-
 Name: MulDivRem:290
@@ -339,9 +403,11 @@ Proof
 
 open ComWrappers
 def MulDivRem290_lhs (w : ℕ) :
-  Com InstCombine.Op [/- %X -/ InstCombine.Ty.mkBitvec w, /- %Y -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+  Com InstCombine.Op
+    [/- %X -/ InstCombine.Ty.mkBitvec w,
+    /- %Y -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
   /- c1 = -/ Com.lete (const w 1) <|
-  /- poty = -/ Com.lete (shl w ⟨ /- c1 -/ 0, by simp[Ctxt.snoc]⟩ ⟨ /-%Y -/ 1, by simp[Ctxt.snoc]⟩) <|
+  /- poty = -/ Com.lete (shl w ⟨/- c1 -/ 0, by simp[Ctxt.snoc]⟩ ⟨ /-%Y -/ 1, by simp[Ctxt.snoc]⟩) <|
   /- r = -/ Com.lete (mul w ⟨ /- poty -/ 0, by simp[Ctxt.snoc]⟩ ⟨ /-%X -/ 3, by simp[Ctxt.snoc]⟩) <|
   Com.ret ⟨/-r-/0, by simp[Ctxt.snoc]⟩
 
@@ -349,7 +415,6 @@ def MulDivRem290_rhs (w : ℕ) :
   Com InstCombine.Op [/- %X -/ InstCombine.Ty.mkBitvec w, /- %Y -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
   /- r = -/ Com.lete (shl w ⟨/-X-/ 1, by simp[Ctxt.snoc]⟩ ⟨/-Y-/0, by simp[Ctxt.snoc]⟩) <|
   Com.ret ⟨/-r-/0, by simp[Ctxt.snoc]⟩
-
 
 def alive_simplifyMulDivRem290 (w : Nat) :
   MulDivRem290_lhs w ⊑ MulDivRem290_rhs w := by
@@ -368,10 +433,21 @@ def alive_simplifyMulDivRem290 (w : Nat) :
       split_ifs <;> simp
     case some y =>
       split_ifs <;> simp
-      case neg =>
-        -- ⊢ BitVec.coeWidth (BitVec.coeWidth (BitVec.ofInt w 1 <<< x) <<< y) = BitVec.coeWidth (y <<< x)
-        simp[HShiftLeft.hShiftLeft, BitVec.instHShiftLeftBitVecNat, ShiftLeft.shiftLeft, Std.BitVec.shiftLeft]
-        sorry
+      case neg hwx =>
+        simp[HShiftLeft.hShiftLeft, BitVec.instHShiftLeftBitVecNat, BitVec.shiftLeft, ShiftLeft.shiftLeft, Nat.shiftLeft]
+        simp[Nat.shiftLeft_eq]
+        cases w <;> try simp
+        case succ w' =>
+        rw[BitVec.toNat_ofInt_1 (WNEQ0 := Fact.mk (by simp))]
+        simp[BitVec.coeWidth, BitVec.ofNat, HMul.hMul, Mul.mul, Fin.mul, BitVec.mul, Fin.ofNat', BitVec.toNat,
+            BitVec.toFin]
+        norm_num
+        conv =>
+          lhs
+          rw[Nat.mul_mod, Nat.mod_mod, ← Nat.mul_mod]
+        congr 1
+        ring
+
 end MulDivRem
 
 
