@@ -145,10 +145,45 @@ theorem BitVec.zeroExtend_id (b : BitVec w) :
   obtain ⟨bval, hbval⟩ := b
   simp [BitVec.zeroExtend, BitVec.ofNat, BitVec.toNat, Fin.ofNat', BitVec.toFin, Fin.val]
   apply Nat.mod_eq_of_lt hbval
-end BitVecTheory
 
 @[simp]
-theorem BitVec.add_eq_fin (a b : BitVec w) : a + b = BitVec.ofFin (a.toFin + b.toFin) := rfl
+lemma BitVec.ofInt_ofNat (w n : Nat)  :
+    BitVec.ofInt w (OfNat.ofNat n) = BitVec.ofNat w n :=
+  rfl
+
+/- Not a simp lemma by default because we may want toFin or toInt in the future. -/
+theorem BitVec.ult_toNat (x y : BitVec n) :
+    (BitVec.ult (n := n) x y) = decide (x.toNat < y.toNat) := by
+  simp [BitVec.ult]
+  obtain ⟨x, hx⟩ := x
+  obtain ⟨y, hy⟩ := y
+  constructor <;>
+  intros h <;>
+  simp only [Fin.mk_lt_mk, BitVec.toNat] at h ⊢ <;>
+  assumption
+
+#check BitVec.getLsb_xor
+/-- The usual theorem is stated with nat as the index. -/
+@[simp] lemma BitVec.getLsb_xor' (x y : BitVec w) (i : Nat) :
+    (x ^^^ y).getLsb i = xor (x.getLsb i) (y.getLsb i) := by sorry
+
+@[simp] lemma BitVec.ushr_bitvec_eq (x y : BitVec w) :
+    (x >>> y) = BitVec.ofNat w (x.toNat >>> y.toNat) := rfl
+
+@[simp] lemma BitVec.getLsb_ushr' (x : BitVec w) (y : Nat) (i : Fin w) :
+    (x >>> y).getLsb i = if (y > i) then false else (x.getLsb (i - y)) := by
+  simp only [HShiftRight.hShiftRight, BitVec.instHShiftRightBitVec,
+        HXor.hXor, Xor.xor, BitVec.xor, Fin.xor, Nat.xor, BitVec.ushiftRight,
+        ShiftRight.shiftRight, Nat.shiftRight, BitVec.toNat, BitVec.getLsb, BitVec.ofNat,
+        Fin.ofNat', Fin.val]
+  simp [Nat.one_shiftLeft, Nat.and_two_pow, Nat.testBit]
+  sorry
+
+/-- simp normal form is shifting two bitvecs -/
+@[simp low] lemma BitVec.ushr_nat_eq (x : BitVec w) (y : Nat) :
+    (x >>> y) = (x >>> (BitVec.ofNat w y))  := sorry
+
+end BitVecTheory
 
 namespace LLVMTheory
 open BitVecTheory
@@ -174,6 +209,14 @@ theorem LLVM.lshr?_eq_none {a b : BitVec w} (hb : b.toNat ≥ w) : LLVM.lshr? (k
   simp only [LLVM.lshr?]
   split_ifs; simp
 
+@[simp]
+theorem LLVM.select?_eq_none : LLVM.select? (w := w) none a b = .none := rfl
+
+@[simp]
+theorem LLVM.select?_some_true : LLVM.select? (w := w) (.some true) a b = a := rfl
+
+@[simp]
+theorem LLVM.select?_some_false : LLVM.select? (w := w) (.some false) a b = b := rfl
 
 @[simp]
 theorem LLVM.add?_eq : LLVM.add? (w := w) a b = .some (a + b) := rfl
@@ -193,6 +236,7 @@ theorem LLVM.sdiv?_denom_nonzero_inbounds {w : Nat} {a b : BitVec w} (hb : b ≠
     LLVM.sdiv? a b = .some (BitVec.ofInt w (a.toInt / b.toInt)) := by
   simp [LLVM.sdiv?, hinbounds, hb, LLVM.BitVec.ofIntInbounds?]
   exact hb
+
 
 end LLVMTheory
 
@@ -402,53 +446,41 @@ def MulDivRem805_rhs (w : ℕ) : Com InstCombine.Op [/- %X -/ InstCombine.Ty.mkB
   /- r = -/ Com.lete (select w ⟨/-%c-/1, by simp [Ctxt.snoc]⟩ ⟨/-X-/5, by simp [Ctxt.snoc]⟩ ⟨/-c0-/0, by simp [Ctxt.snoc]⟩) <|
   Com.ret ⟨/-r-/0, by simp [Ctxt.snoc]⟩
 
+-- rule: try to keep everything in Nat.
+-- theorem :
 def alive_simplifyMulDivRem805 (w : Nat) :
   MulDivRem805_lhs w ⊑ MulDivRem805_rhs w := by
   simp only [Com.Refinement]; intros Γv
   simp only [MulDivRem805_lhs, MulDivRem805_rhs,
     InstCombine.Ty.mkBitvec, const, sdiv, Ctxt.get?, Var.zero_eq_last, add, icmp, select]
   simp_peephole [MOp.sdiv, MOp.binary, MOp.BinaryOp.sdiv, MOp.select, MOp.select] at Γv
+  -- figure out why add gets unfolded.
   intros a
-  simp [InstCombine.Op.denote, pairBind, HVector.toPair, HVector.toTuple, Function.comp_apply, HVector.toTriple, bind_assoc, LLVM.const?_eq,
-    Bind.bind, Option.bind]
-  cases a <;> simp
+  simp only [InstCombine.Op.denote, pairBind, HVector.toPair, HVector.toTuple, Function.comp_apply, HVector.toTriple, bind_assoc, LLVM.const?_eq,
+    Bind.bind, Option.bind, LLVM.add?_eq, LLVM.icmp?_ult_eq]
+  cases a <;> simp only [BitVec.Refinement.none_left, LLVM.select?_eq_none]
   case some val =>
     have hval : val = 0 ∨ val ≠ 0 := by tauto;
-    rcases hval with rfl | hvalnonzero <;> try simp
+    rcases hval with rfl | hvalnonzero <;> try simp only [BitVec.ofNat_eq_ofNat, LLVM.sdiv?_denom_zero, BitVec.Refinement.none_left]
     case inr =>
+      rcases w with zero | w <;> try simp only [Nat.zero_eq, BitVec.ofNat_eq_ofNat,
+        eq_iff_true_of_subsingleton, LLVM.sdiv?_denom_zero, BitVec.Refinement.none_left]
+      simp [BitVec.ofInt_ofNat _ 3, BitVec.ofInt_ofNat _ 1, BitVec.ofInt_ofNat _ 0]
       have hval : val = -1 ∨ val = 0 ∨ val = 1 ∨ val = 2 ∨ val ≥ 2 ∨ val ≤ -2 := by sorry
-      rcases hval with rfl | rfl | rfl | rfl | hval | hval
+      rcases hval with rfl | rfl | rfl | rfl | hval | hval <;> try simp
+      . conv =>
+        rewrite [BitVec.ult_toNat (BitVec.ofNat (Nat.succ w) 0) (BitVec.ofNat (Nat.succ w) 3)]
+        simp only [BitVec.ofNat_eq_ofNat, ne_eq, BitVec.ofNat_eq_mod_two_pow, Nat.zero_mod]
+        rcases w with zero | w'
+        . simp [Nat.pow_succ]
+        . simp [Nat.pow_succ]; ring_nf
+          have h3 : 3 % (2 ^ w' * 4) = 3 := by sorry
+          simp [h3]
+          sorry -- We need to fix the semantics of sdiv for this to go through.
       . sorry
       . sorry
       . sorry
       . sorry
-      . sorry
-      . sorry
-
-/-
-    split_ifs <;> try simp
-    case pos vneq0 hinbounds =>
-      simp only [LLVM.icmp, BitVec.ult]
-      simp [HAdd.hAdd, Add.add, BitVec.add]
-      simp only [BitVec.ofInt_toFin_nonneg w 3 rfl]
-      simp only [BitVec.ofInt_toFin_nonneg w 1 rfl]
-      cases w
-      case zero =>
-        have valEq0 : val = BitVec.ofNat 0 0 := BitVec.width_zero_eq_zero val
-        subst valEq0
-        simp
-      case succ w' =>
-        simp [HDiv.hDiv, instHDiv, Div.div, Int.ediv]
-        have wlt0 : Fact (0 < Nat.succ w') := Fact.mk (by simp)
-        cases w'
-        case zero =>
-          simp;
-          sorry
-        case succ w'' =>
-          have wlt1 : Fact (1 < Nat.succ (Nat.succ w'')) := Fact.mk (by simp)
-          rw [BitVec.toInt_ofInt_1]
-          sorry -- how to actually perform the case split here?
--/
 
 /-
 Name: MulDivRem:290
@@ -522,7 +554,7 @@ end MulDivRem
 
 namespace AndOrXor
 /-
-Name: AndOrXor:2515   ((X^C1) >> C2)^C3 -> (X>>C2) ^ ((C1>>C2)^C3)
+Name: AndOrXor:2515   ((X^C1) >> C2)^C3 = (X>>C2) ^ ((C1>>C2)^C3)
 %e1  = xor %x, C1
 %op0 = lshr %e1, C2
 %r   = xor %op0, C3
@@ -534,6 +566,7 @@ Name: AndOrXor:2515   ((X^C1) >> C2)^C3 -> (X>>C2) ^ ((C1>>C2)^C3)
 -/
 
 open ComWrappers
+open BitVecTheory
 open LLVMTheory
 def AndOrXor2515_lhs (w : ℕ):
   Com InstCombine.Op
@@ -552,7 +585,7 @@ def AndOrXor2515_rhs (w : ℕ) :
      /- C2 -/ InstCombine.Ty.mkBitvec w,
      /- C3 -/ InstCombine.Ty.mkBitvec w,
      /- %X -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
-  /- o = -/ Com.lete (lshr w ⟨/-X-/ 1, by simp [Ctxt.snoc]⟩ ⟨/-C2-/2, by simp [Ctxt.snoc]⟩) <|
+  /- o = -/ Com.lete (lshr w ⟨/-X-/ 0, by simp [Ctxt.snoc]⟩ ⟨/-C2-/2, by simp [Ctxt.snoc]⟩) <|
   /- p = -/ Com.lete (lshr w ⟨/-C1-/ 4, by simp [Ctxt.snoc]⟩ ⟨/-C2-/3, by simp [Ctxt.snoc]⟩) <|
   /- q = -/ Com.lete (xor w ⟨/-p-/0, by simp [Ctxt.snoc]⟩ ⟨/-C3-/3, by simp [Ctxt.snoc]⟩) <|
   /- r = -/ Com.lete (xor w ⟨/-o-/2, by simp [Ctxt.snoc]⟩ ⟨/-q-/0, by simp [Ctxt.snoc]⟩) <|
@@ -571,14 +604,15 @@ def alive_simplifyAndOrXor2515 (w : Nat) :
   rcases c2 with none | c2 <;>
   rcases c3 with none | c3 <;>
   rcases x with none | x <;> simp[Option.bind, Bind.bind]
-  . rcases (LLVM.lshr? (x ^^^ c1) c2) with none | irrelevant <;> simp
+  . rcases (LLVM.lshr? (x ^^^ c1) c2) with none | _ <;> simp
   . -- TODO: develop automation to automatically do the case split. See also: prime motivation for simproc.
     have hc2: (c2.toNat < w) ∨ ¬ (c2.toNat < w) := by tauto
     rcases hc2 with lt | gt
     . simp only [ge_iff_le, LLVM.lshr?_eq_some lt, BitVec.ushiftRight_eq,
       BitVec.Refinement.some_some]
-      -- (x ^^^ c1) >>> BitVec.toNat c2 ^^^ c3 = c3 >>> BitVec.toNat c2 ^^^ (c1 >>> BitVec.toNat c2 ^^^ c3)
-      sorry -- I need bitwise reasoning here!
+      ext i
+      simp only [BitVec.getLsb_xor, BitVec.getLsb_ushr']
+      split_ifs <;> try simp
     . have hc2 : c2.toNat ≥ w := by linarith
       simp [LLVM.lshr?_eq_none hc2]
 /-
@@ -588,7 +622,7 @@ Proof:
   LHS:
   ----
   (((X^C1) >> C2)^C3))[i]
-  = ((X^C1) >> C2)[i] ^ C3[i] [bit-of-lshr]
+  = ((X^C1) >> C2)[i] ^ C3[i] [bit-of-lsh r]
   # NOTE: negative entries will be 0 because it is LOGICAL shift right. This is denoted by the []₀ operator.
   = ((X^C1))[i - C2]₀ ^ C3[i] [bit-of-lshr]
   = (X[i - C2]₀ ^ C1[i - C2]₀) ^ C3[i]  [bit-of-xor]
