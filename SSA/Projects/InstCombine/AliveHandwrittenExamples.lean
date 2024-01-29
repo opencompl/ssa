@@ -191,25 +191,30 @@ theorem BitVec.ult_toNat (x y : BitVec n) :
   simp only [Fin.mk_lt_mk, BitVec.toNat] at h ⊢ <;>
   assumption
 
+
+-- Std theorem
+theorem Std.BitVec.getLsb_ge (x : BitVec w) (hi : i ≥ w) : BitVec.getLsb x i = false := by sorry
+
+
 #check BitVec.getLsb_xor
 /-- The usual theorem is stated with nat as the index. -/
 @[simp] lemma BitVec.getLsb_xor' (x y : BitVec w) (i : Nat) :
-    (x ^^^ y).getLsb i = xor (x.getLsb i) (y.getLsb i) := by sorry
+    (x ^^^ y).getLsb i = xor (x.getLsb i) (y.getLsb i) := by
+    have hi : i < w ∨ i ≥ w := Nat.lt_or_ge _ _
+    rcases hi with h | h
+    . have hi : i = (Fin.mk i h).val := rfl
+      rw [hi]
+      apply BitVec.getLsb_xor
+    . simp [Std.BitVec.getLsb_ge _ h]
+
 
 @[simp] lemma BitVec.ushr_bitvec_eq (x y : BitVec w) :
     (x >>> y) = BitVec.ofNat w (x.toNat >>> y.toNat) := rfl
 
-@[simp] lemma BitVec.getLsb_ushr' (x : BitVec w) (y : Nat) (i : Fin w) :
-    (x >>> y).getLsb i = if (y > i) then false else (x.getLsb (i - y)) := by
-  simp only [HShiftRight.hShiftRight, BitVec.instHShiftRightBitVec,
-        HXor.hXor, Xor.xor, BitVec.xor, Fin.xor, Nat.xor, BitVec.ushiftRight,
-        ShiftRight.shiftRight, Nat.shiftRight, BitVec.toNat, BitVec.getLsb, BitVec.ofNat,
-        Fin.ofNat', Fin.val]
-  sorry
+-- shift right rule
+lemma BitVec.getLsb_ushr' (x : BitVec w) (y : Nat) (i : Fin w) :
+    (x >>> y).getLsb i = if (y > i) then false else (x.getLsb (i - y)) := by sorry
 
-/-- simp normal form is shifting two bitvecs -/
-@[simp low] lemma BitVec.ushr_nat_eq (x : BitVec w) (y : Nat) :
-    (x >>> y) = (x >>> (BitVec.ofNat w y))  := sorry
 
 end BitVecTheory
 
@@ -821,6 +826,7 @@ Equivalence proof:
 -/
 
 
+
 /-
 Name: Select:747
 %c = icmp sgt %A, 0
@@ -838,5 +844,62 @@ c = A s> 0
 minus = 0 - A
 abs = c ? A : minus (A > 0 ? A : -A)
 -/
+
+def Select747_lhs (w : ℕ):
+  Com InstCombine.Op
+    [/- A -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+  /- c0     = -/ Com.lete (const w 0) <|
+  /- c      = -/ Com.lete (icmp w .sgt ⟨/-A-/ 1, by simp [Ctxt.snoc]⟩ ⟨ /-c0-/ 0, by simp [Ctxt.snoc]⟩) <|
+  /- minus  = -/ Com.lete (sub w ⟨/-c0-/ 1, by simp [Ctxt.snoc]⟩ ⟨ /-A-/ 2, by simp [Ctxt.snoc]⟩) <|
+  /- abs    = -/ Com.lete (select w ⟨/-c-/ 1, by simp [Ctxt.snoc]⟩ ⟨/-A-/ 3, by simp [Ctxt.snoc]⟩ ⟨/-minus-/ 0, by simp [Ctxt.snoc]⟩) <|
+  /- c2     = -/ Com.lete (icmp w .slt ⟨/-abs-/ 0, by simp [Ctxt.snoc]⟩ ⟨ /-c0-/ 3, by simp [Ctxt.snoc]⟩) <|
+  /- minus2 = -/ Com.lete (sub w ⟨/-c0-/ 4, by simp [Ctxt.snoc]⟩ ⟨ /-abs-/ 1, by simp [Ctxt.snoc]⟩) <|
+  /- abs2   = -/ Com.lete (select w ⟨/-c2-/ 1, by simp [Ctxt.snoc]⟩ ⟨/-abs-/ 2, by simp [Ctxt.snoc]⟩ ⟨/-minus2-/ 0, by simp [Ctxt.snoc]⟩) <|
+  Com.ret ⟨/-r-/0, by simp [Ctxt.snoc]⟩
+
+def Select747_rhs (w : ℕ) :
+  Com InstCombine.Op
+    [/- A -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+  /- c0     = -/ Com.lete (const w 0) <|
+  /- c3     = -/ Com.lete (icmp w .slt ⟨/-A-/ 1, by simp [Ctxt.snoc]⟩ ⟨ /-c0-/ 0, by simp [Ctxt.snoc]⟩) <|
+  /- minus  = -/ Com.lete (sub w ⟨/-c0-/ 1, by simp [Ctxt.snoc]⟩ ⟨ /-A-/ 2, by simp [Ctxt.snoc]⟩) <|
+  /- abs2   = -/ Com.lete (select w ⟨/-c3-/ 1, by simp [Ctxt.snoc]⟩ ⟨/-A-/ 3, by simp [Ctxt.snoc]⟩ ⟨/-minus-/ 0, by simp [Ctxt.snoc]⟩) <|
+  Com.ret ⟨/-r-/0, by simp [Ctxt.snoc]⟩
+
+theorem alive_simplifySelect747 (w : Nat) :
+  Select747_lhs w ⊑ Select747_rhs w := by
+  simp only [Com.Refinement]; intros Γv
+  simp only [Select747_lhs, Select747_rhs,
+    InstCombine.Ty.mkBitvec, const, shl, mul, Ctxt.get?, Var.zero_eq_last, add, icmp, ComWrappers.xor, lshr, select, sub, const, icmp]
+  simp_peephole [MOp.icmp, MOp.const, MOp.select, MOp.sdiv, MOp.binary, MOp.BinaryOp.shl, MOp.shl, MOp.mul, MOp.and, MOp.or, MOp.xor, MOp.add] at Γv
+  intros A
+  simp only [InstCombine.Op.denote, pairBind, HVector.toPair, HVector.toTuple, Function.comp_apply, HVector.toTriple, bind_assoc]
+  rcases A with none | A  <;> simp [Option.bind, Bind.bind]
+  split_ifs <;> try simp
+  case neg h =>
+    split_ifs <;> simp
+    case pos contra => contradiction
+  case pos h =>
+    split_ifs <;> simp
+  case neg ha hb =>
+    split_ifs <;> simp
+    case neg hc =>
+      simp [BitVec.slt] at hc ha hb
+      have h0 :  BitVec.toInt A = 0 := by linarith
+      have h0' : A = 0 := by
+        apply BitVec.eq_zero_of_toInt_zero
+        exact h0
+      simp [h0']
+  case pos ha hb =>
+    split_ifs <;> simp
+    case pos hc =>
+      simp [BitVec.slt] at hc ha hb
+      simp [BitVec.toInt_neg] at hc
+      exfalso
+      linarith
+
 end Select
+
+
+
 end AliveHandwritten
