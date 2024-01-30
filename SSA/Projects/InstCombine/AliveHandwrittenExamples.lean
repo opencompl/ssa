@@ -1,4 +1,5 @@
 import Std.Data.Nat.Lemmas
+-- import Std.Data.Nat.Bitwise | we don't have the right lemmas.
 import Std.Data.Int.Lemmas
 import SSA.Projects.InstCombine.FromStd
 import SSA.Projects.InstCombine.LLVM.EDSL
@@ -196,6 +197,8 @@ theorem BitVec.ult_toNat (x y : BitVec n) :
 theorem Std.BitVec.getLsb_ge (x : BitVec w) (hi : i ≥ w) : BitVec.getLsb x i = false := by sorry
 
 
+
+
 #check BitVec.getLsb_xor
 /-- The usual theorem is stated with nat as the index. -/
 @[simp] lemma BitVec.getLsb_xor' (x y : BitVec w) (i : Nat) :
@@ -211,10 +214,23 @@ theorem Std.BitVec.getLsb_ge (x : BitVec w) (hi : i ≥ w) : BitVec.getLsb x i =
 @[simp] lemma BitVec.ushr_bitvec_eq (x y : BitVec w) :
     (x >>> y) = BitVec.ofNat w (x.toNat >>> y.toNat) := rfl
 
+-- std theorem
+-- theorem Std.Data.Nat.Bitwise.Nat.testBit_shiftRight{i : Nat} {j : Nat} (x : Nat) :
+--     Nat.testBit (Nat.shiftRight x i) j = Nat.testBit x (i + j) := by 
+
 -- shift right rule
 lemma BitVec.getLsb_ushr' (x : BitVec w) (y : Nat) (i : Fin w) :
-    (x >>> y).getLsb i = if (y > i) then false else (x.getLsb (i - y)) := by sorry
-
+    (x >>> y).getLsb i = if (y > i) then false else (x.getLsb (i - y)) := by
+  have ⟨i, hi⟩ := i
+  unfold HShiftRight.hShiftRight
+  unfold BitVec.instHShiftRightBitVecNat
+  unfold BitVec.ushiftRight
+  simp
+  unfold HShiftRight.hShiftRight instHShiftRight ShiftRight.shiftRight Nat.instShiftRightNat
+  have ⟨x, hx⟩ := x
+  simp [BitVec.getLsb]
+  simp [Nat.and_two_pow]
+  sorry
 
 end BitVecTheory
 
@@ -285,12 +301,14 @@ theorem LLVM.sdiv?_denom_zero {w : Nat} {a b : BitVec w} (hb : b = 0) : LLVM.sdi
   by simp [LLVM.sdiv?, hb]
 
 
+/-
 @[simp]
 theorem LLVM.sdiv?_denom_nonzero_inbounds {w : Nat} {a b : BitVec w} (hb : b ≠ 0)
     (hinbounds : LLVM.BitVec.isIntInbounds? w (a.toInt / b.toInt)) :
     LLVM.sdiv? a b = .some (BitVec.ofInt w (a.toInt / b.toInt)) := by
   simp [LLVM.sdiv?, hinbounds, hb, LLVM.BitVec.ofIntInbounds?]
   exact hb
+-/
 
 
 end LLVMTheory
@@ -362,79 +380,79 @@ end DivRemOfSelect
 /- Wrapper around Com, Expr constructors to easily hand-write IR -/
 namespace ComWrappers
 
-def const {Γ : Ctxt _} (w : ℕ) (n : ℤ) : Expr InstCombine.Op Γ (InstCombine.Ty.mkBitvec w) :=
+def const {Γ : Ctxt _} (w : ℕ) (n : ℤ) : Expr InstCombine.Op Γ (InstCombine.Ty.bitvec w) :=
   Expr.mk
     (op := InstCombine.MOp.const w n)
     (ty_eq := rfl)
     (args := .nil)
     (regArgs := .nil)
 
-def sdiv {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w)) :
-    Expr InstCombine.Op Γ (InstCombine.Ty.mkBitvec w) :=
+def sdiv {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.bitvec w)) :
+    Expr InstCombine.Op Γ (InstCombine.Ty.bitvec w) :=
   Expr.mk
     (op := InstCombine.MOp.sdiv w)
     (ty_eq := rfl)
     (args := .cons e₁ <| .cons e₂ .nil)
     (regArgs := .nil)
 
-def add {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w)) :
-    Expr InstCombine.Op Γ (InstCombine.Ty.mkBitvec w) :=
+def add {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.bitvec w)) :
+    Expr InstCombine.Op Γ (InstCombine.Ty.bitvec w) :=
   Expr.mk
     (op := InstCombine.MOp.add w)
     (ty_eq := rfl)
     (args := .cons e₁ <| .cons e₂ .nil)
     (regArgs := .nil)
 
-def sub {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w)) :
-    Expr InstCombine.Op Γ (InstCombine.Ty.mkBitvec w) :=
+def sub {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.bitvec w)) :
+    Expr InstCombine.Op Γ (InstCombine.Ty.bitvec w) :=
   Expr.mk
     (op := InstCombine.MOp.sub w)
     (ty_eq := rfl)
     (args := .cons e₁ <| .cons e₂ .nil)
     (regArgs := .nil)
 
-def mul {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w)) :
-    Expr InstCombine.Op Γ (InstCombine.Ty.mkBitvec w) :=
+def mul {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.bitvec w)) :
+    Expr InstCombine.Op Γ (InstCombine.Ty.bitvec w) :=
   Expr.mk
     (op := InstCombine.MOp.mul w)
     (ty_eq := rfl)
     (args := .cons e₁ <| .cons e₂ .nil)
     (regArgs := .nil)
 
-def shl {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w)) :
-    Expr InstCombine.Op Γ (InstCombine.Ty.mkBitvec w) :=
+def shl {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.bitvec w)) :
+    Expr InstCombine.Op Γ (InstCombine.Ty.bitvec w) :=
   Expr.mk
     (op := InstCombine.MOp.shl w)
     (ty_eq := rfl)
     (args := .cons e₁ <| .cons e₂ .nil)
     (regArgs := .nil)
 
-def lshr {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w)) :
-    Expr InstCombine.Op Γ (InstCombine.Ty.mkBitvec w) :=
+def lshr {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.bitvec w)) :
+    Expr InstCombine.Op Γ (InstCombine.Ty.bitvec w) :=
   Expr.mk
     (op := InstCombine.MOp.lshr w)
     (ty_eq := rfl)
     (args := .cons e₁ <| .cons e₂ .nil)
     (regArgs := .nil)
 
-def xor {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w)) :
-    Expr InstCombine.Op Γ (InstCombine.Ty.mkBitvec w) :=
+def xor {Γ : Ctxt _} (w : ℕ) (e₁ e₂ : Var Γ (InstCombine.Ty.bitvec w)) :
+    Expr InstCombine.Op Γ (InstCombine.Ty.bitvec w) :=
   Expr.mk
     (op := InstCombine.MOp.xor w)
     (ty_eq := rfl)
     (args := .cons e₁ <| .cons e₂ .nil)
     (regArgs := .nil)
 
-def icmp {Γ : Ctxt _} (w : ℕ) (pred : LLVM.IntPredicate) (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w)) :
-    Expr InstCombine.Op Γ (InstCombine.Ty.mkBitvec 1) :=
+def icmp {Γ : Ctxt _} (w : ℕ) (pred : LLVM.IntPredicate) (e₁ e₂ : Var Γ (InstCombine.Ty.bitvec w)) :
+    Expr InstCombine.Op Γ (InstCombine.Ty.bitvec 1) :=
   Expr.mk
     (op := InstCombine.MOp.icmp pred w)
     (ty_eq := rfl)
     (args := .cons e₁ <| .cons e₂ .nil)
     (regArgs := .nil)
 
-def select {Γ : Ctxt _} (w : ℕ) (cond : Var Γ (InstCombine.Ty.mkBitvec 1))
-    (e₁ e₂ : Var Γ (InstCombine.Ty.mkBitvec w)) : Expr InstCombine.Op Γ (InstCombine.Ty.mkBitvec w) :=
+def select {Γ : Ctxt _} (w : ℕ) (cond : Var Γ (InstCombine.Ty.bitvec 1))
+    (e₁ e₂ : Var Γ (InstCombine.Ty.bitvec w)) : Expr InstCombine.Op Γ (InstCombine.Ty.bitvec w) :=
   Expr.mk
     (op := InstCombine.MOp.select w)
     (ty_eq := rfl)
@@ -487,12 +505,12 @@ Proof:
 open BitVecTheory
 open LLVMTheory
 open ComWrappers
-def MulDivRem805_lhs (w : ℕ) : Com InstCombine.Op [/- %X -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+def MulDivRem805_lhs (w : ℕ) : Com InstCombine.Op [/- %X -/ InstCombine.Ty.bitvec w] (InstCombine.Ty.bitvec w) :=
   /- c1 = -/ Com.lete (const w 1) <|
   /- r = -/ Com.lete (sdiv w ⟨ /- c1-/ 0, by simp [Ctxt.snoc]⟩ ⟨ /-%X -/ 1, by simp [Ctxt.snoc]⟩) <|
   Com.ret ⟨/-r-/0, by simp [Ctxt.snoc]⟩
 
-def MulDivRem805_rhs (w : ℕ) : Com InstCombine.Op [/- %X -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+def MulDivRem805_rhs (w : ℕ) : Com InstCombine.Op [/- %X -/ InstCombine.Ty.bitvec w] (InstCombine.Ty.bitvec w) :=
   /- c1 = -/ Com.lete (const w 1) <|
   /- inc = -/ Com.lete (add w ⟨ /-c1 -/0, by simp [Ctxt.snoc]⟩ ⟨/-X-/1, by simp [Ctxt.snoc]⟩) <|
   /- c3 = -/ Com.lete (const w 3) <|
@@ -507,7 +525,7 @@ def alive_simplifyMulDivRem805 (w : Nat) :
   MulDivRem805_lhs w ⊑ MulDivRem805_rhs w := by
   simp only [Com.Refinement]; intros Γv
   simp only [MulDivRem805_lhs, MulDivRem805_rhs,
-    InstCombine.Ty.mkBitvec, const, sdiv, Ctxt.get?, Var.zero_eq_last, add, icmp, select]
+    InstCombine.Ty.bitvec, const, sdiv, Ctxt.get?, Var.zero_eq_last, add, icmp, select]
   simp_peephole [MOp.sdiv, MOp.binary, MOp.BinaryOp.sdiv, MOp.select, MOp.select] at Γv
   -- figure out why add gets unfolded.
   intros a
@@ -561,15 +579,15 @@ Proof
 open ComWrappers
 def MulDivRem290_lhs (w : ℕ) :
   Com InstCombine.Op
-    [/- %X -/ InstCombine.Ty.mkBitvec w,
-    /- %Y -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+    [/- %X -/ InstCombine.Ty.bitvec w,
+    /- %Y -/ InstCombine.Ty.bitvec w] (InstCombine.Ty.bitvec w) :=
   /- c1 = -/ Com.lete (const w 1) <|
   /- poty = -/ Com.lete (shl w ⟨/- c1 -/ 0, by simp [Ctxt.snoc]⟩ ⟨ /-%Y -/ 1, by simp [Ctxt.snoc]⟩) <|
   /- r = -/ Com.lete (mul w ⟨ /- poty -/ 0, by simp [Ctxt.snoc]⟩ ⟨ /-%X -/ 3, by simp [Ctxt.snoc]⟩) <|
   Com.ret ⟨/-r-/0, by simp [Ctxt.snoc]⟩
 
 def MulDivRem290_rhs (w : ℕ) :
-  Com InstCombine.Op [/- %X -/ InstCombine.Ty.mkBitvec w, /- %Y -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+  Com InstCombine.Op [/- %X -/ InstCombine.Ty.bitvec w, /- %Y -/ InstCombine.Ty.bitvec w] (InstCombine.Ty.bitvec w) :=
   /- r = -/ Com.lete (shl w ⟨/-X-/ 1, by simp [Ctxt.snoc]⟩ ⟨/-Y-/0, by simp [Ctxt.snoc]⟩) <|
   Com.ret ⟨/-r-/0, by simp [Ctxt.snoc]⟩
 
@@ -577,7 +595,7 @@ def alive_simplifyMulDivRem290 (w : Nat) :
   MulDivRem290_lhs w ⊑ MulDivRem290_rhs w := by
   simp only [Com.Refinement]; intros Γv
   simp only [MulDivRem290_lhs, MulDivRem290_rhs,
-    InstCombine.Ty.mkBitvec, const, shl, mul, Ctxt.get?, Var.zero_eq_last, add, icmp, select]
+    InstCombine.Ty.bitvec, const, shl, mul, Ctxt.get?, Var.zero_eq_last, add, icmp, select]
   simp_peephole [MOp.sdiv, MOp.binary, MOp.BinaryOp.shl, MOp.shl, MOp.mul] at Γv
   intros x y
   simp only [InstCombine.Op.denote, pairBind, HVector.toPair, HVector.toTuple, Function.comp_apply, HVector.toTriple, bind_assoc]
@@ -625,10 +643,10 @@ open BitVecTheory
 open LLVMTheory
 def AndOrXor2515_lhs (w : ℕ):
   Com InstCombine.Op
-    [/- C1 -/ InstCombine.Ty.mkBitvec w,
-     /- C2 -/ InstCombine.Ty.mkBitvec w,
-     /- C3 -/ InstCombine.Ty.mkBitvec w,
-     /- %X -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+    [/- C1 -/ InstCombine.Ty.bitvec w,
+     /- C2 -/ InstCombine.Ty.bitvec w,
+     /- C3 -/ InstCombine.Ty.bitvec w,
+     /- %X -/ InstCombine.Ty.bitvec w] (InstCombine.Ty.bitvec w) :=
   /- e1  = -/ Com.lete (xor w ⟨/-x-/ 0, by simp [Ctxt.snoc]⟩ ⟨ /-C1-/ 3, by simp [Ctxt.snoc]⟩) <|
   /- op0 = -/ Com.lete (lshr w ⟨/-e1-/ 0, by simp [Ctxt.snoc]⟩ ⟨ /-C2-/ 3, by simp [Ctxt.snoc]⟩) <|
   /- r   = -/ Com.lete (xor w ⟨/-op0-/ 0, by simp [Ctxt.snoc]⟩ ⟨ /-C3-/ 3, by simp [Ctxt.snoc]⟩) <|
@@ -636,10 +654,10 @@ def AndOrXor2515_lhs (w : ℕ):
 
 def AndOrXor2515_rhs (w : ℕ) :
   Com InstCombine.Op
-    [/- C1 -/ InstCombine.Ty.mkBitvec w,
-     /- C2 -/ InstCombine.Ty.mkBitvec w,
-     /- C3 -/ InstCombine.Ty.mkBitvec w,
-     /- %X -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+    [/- C1 -/ InstCombine.Ty.bitvec w,
+     /- C2 -/ InstCombine.Ty.bitvec w,
+     /- C3 -/ InstCombine.Ty.bitvec w,
+     /- %X -/ InstCombine.Ty.bitvec w] (InstCombine.Ty.bitvec w) :=
   /- o = -/ Com.lete (lshr w ⟨/-X-/ 0, by simp [Ctxt.snoc]⟩ ⟨/-C2-/2, by simp [Ctxt.snoc]⟩) <|
   /- p = -/ Com.lete (lshr w ⟨/-C1-/ 4, by simp [Ctxt.snoc]⟩ ⟨/-C2-/3, by simp [Ctxt.snoc]⟩) <|
   /- q = -/ Com.lete (xor w ⟨/-p-/0, by simp [Ctxt.snoc]⟩ ⟨/-C3-/3, by simp [Ctxt.snoc]⟩) <|
@@ -651,7 +669,7 @@ def alive_simplifyAndOrXor2515 (w : Nat) :
   AndOrXor2515_lhs w ⊑ AndOrXor2515_rhs w := by
   simp only [Com.Refinement]; intros Γv
   simp only [AndOrXor2515_lhs, AndOrXor2515_rhs,
-    InstCombine.Ty.mkBitvec, const, shl, mul, Ctxt.get?, Var.zero_eq_last, add, icmp, ComWrappers.xor, lshr, select]
+    InstCombine.Ty.bitvec, const, shl, mul, Ctxt.get?, Var.zero_eq_last, add, icmp, ComWrappers.xor, lshr, select]
   simp_peephole [MOp.sdiv, MOp.binary, MOp.BinaryOp.shl, MOp.shl, MOp.mul, MOp.and, MOp.or, MOp.xor, MOp.add] at Γv
   intros x c3 c2 c1
   simp only [InstCombine.Op.denote, pairBind, HVector.toPair, HVector.toTuple, Function.comp_apply, HVector.toTriple, bind_assoc]
@@ -716,7 +734,7 @@ Name: Select:746
 open ComWrappers
 def Select746_lhs (w : ℕ):
   Com InstCombine.Op
-    [/- A -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+    [/- A -/ InstCombine.Ty.bitvec w] (InstCombine.Ty.bitvec w) :=
   /- c0     = -/ Com.lete (const w 0) <|
   /- c      = -/ Com.lete (icmp w .slt ⟨/-A-/ 1, by simp [Ctxt.snoc]⟩ ⟨ /-c0-/ 0, by simp [Ctxt.snoc]⟩) <|
   /- minus  = -/ Com.lete (sub w ⟨/-c0-/ 1, by simp [Ctxt.snoc]⟩ ⟨ /-A-/ 2, by simp [Ctxt.snoc]⟩) <|
@@ -729,7 +747,7 @@ def Select746_lhs (w : ℕ):
 
 def Select746_rhs (w : ℕ):
   Com InstCombine.Op
-    [/- A -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+    [/- A -/ InstCombine.Ty.bitvec w] (InstCombine.Ty.bitvec w) :=
   /- c0     = -/ Com.lete (const w 0) <|
   /- c      = -/ Com.lete (icmp w .slt ⟨/-A-/ 1, by simp [Ctxt.snoc]⟩ ⟨ /-c0-/ 0, by simp [Ctxt.snoc]⟩) <|
   /- minus  = -/ Com.lete (sub w ⟨/-c0-/ 1, by simp [Ctxt.snoc]⟩ ⟨ /-A-/ 2, by simp [Ctxt.snoc]⟩) <|
@@ -771,7 +789,7 @@ def alive_simplifySelect764 (w : Nat) :
   Select746_lhs w ⊑ Select746_rhs w := by
   simp only [Com.Refinement]; intros Γv
   simp only [Select746_lhs, Select746_rhs,
-    InstCombine.Ty.mkBitvec, const, shl, mul, Ctxt.get?, Var.zero_eq_last, add, icmp, ComWrappers.xor, lshr, select, sub, const, icmp]
+    InstCombine.Ty.bitvec, const, shl, mul, Ctxt.get?, Var.zero_eq_last, add, icmp, ComWrappers.xor, lshr, select, sub, const, icmp]
   simp_peephole [MOp.icmp, MOp.const, MOp.select, MOp.sdiv, MOp.binary, MOp.BinaryOp.shl, MOp.shl, MOp.mul, MOp.and, MOp.or, MOp.xor, MOp.add] at Γv
   intros A
   simp only [InstCombine.Op.denote, pairBind, HVector.toPair, HVector.toTuple, Function.comp_apply, HVector.toTriple, bind_assoc]
@@ -847,7 +865,7 @@ abs = c ? A : minus (A > 0 ? A : -A)
 
 def Select747_lhs (w : ℕ):
   Com InstCombine.Op
-    [/- A -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+    [/- A -/ InstCombine.Ty.bitvec w] (InstCombine.Ty.bitvec w) :=
   /- c0     = -/ Com.lete (const w 0) <|
   /- c      = -/ Com.lete (icmp w .sgt ⟨/-A-/ 1, by simp [Ctxt.snoc]⟩ ⟨ /-c0-/ 0, by simp [Ctxt.snoc]⟩) <|
   /- minus  = -/ Com.lete (sub w ⟨/-c0-/ 1, by simp [Ctxt.snoc]⟩ ⟨ /-A-/ 2, by simp [Ctxt.snoc]⟩) <|
@@ -859,7 +877,7 @@ def Select747_lhs (w : ℕ):
 
 def Select747_rhs (w : ℕ) :
   Com InstCombine.Op
-    [/- A -/ InstCombine.Ty.mkBitvec w] (InstCombine.Ty.mkBitvec w) :=
+    [/- A -/ InstCombine.Ty.bitvec w] (InstCombine.Ty.bitvec w) :=
   /- c0     = -/ Com.lete (const w 0) <|
   /- c3     = -/ Com.lete (icmp w .slt ⟨/-A-/ 1, by simp [Ctxt.snoc]⟩ ⟨ /-c0-/ 0, by simp [Ctxt.snoc]⟩) <|
   /- minus  = -/ Com.lete (sub w ⟨/-c0-/ 1, by simp [Ctxt.snoc]⟩ ⟨ /-A-/ 2, by simp [Ctxt.snoc]⟩) <|
@@ -870,7 +888,7 @@ theorem alive_simplifySelect747 (w : Nat) :
   Select747_lhs w ⊑ Select747_rhs w := by
   simp only [Com.Refinement]; intros Γv
   simp only [Select747_lhs, Select747_rhs,
-    InstCombine.Ty.mkBitvec, const, shl, mul, Ctxt.get?, Var.zero_eq_last, add, icmp, ComWrappers.xor, lshr, select, sub, const, icmp]
+    InstCombine.Ty.bitvec, const, shl, mul, Ctxt.get?, Var.zero_eq_last, add, icmp, ComWrappers.xor, lshr, select, sub, const, icmp]
   simp_peephole [MOp.icmp, MOp.const, MOp.select, MOp.sdiv, MOp.binary, MOp.BinaryOp.shl, MOp.shl, MOp.mul, MOp.and, MOp.or, MOp.xor, MOp.add] at Γv
   intros A
   simp only [InstCombine.Op.denote, pairBind, HVector.toPair, HVector.toTuple, Function.comp_apply, HVector.toTriple, bind_assoc]

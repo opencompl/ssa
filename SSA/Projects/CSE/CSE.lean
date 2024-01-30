@@ -502,8 +502,8 @@ def ex1_pre_cse : Com ExOp ∅ .nat :=
   Com.ret ⟨0, by simp [Ctxt.snoc]⟩
 #eval ex1_pre_cse
 
-unsafe def ex1_post_cse : 
- { com' : Com ExOp ∅ .nat // ∀ V, ex1_pre_cse.denote V = com'.denote V } := 
+unsafe def ex1_post_cse :
+ { com' : Com ExOp ∅ .nat // ∀ V, ex1_pre_cse.denote V = com'.denote V } :=
    cse' ex1_pre_cse
 #eval ex1_post_cse
 /-
@@ -513,8 +513,8 @@ CSE.Examples.ExOp.add[[%1, ,, %1]] -- see that the more recent use is dead.
 return %0
 -/
 
-unsafe def ex1_post_cse_post_dce : 
-  { com : Com ExOp ∅ .nat // ∀ V, ex1_post_cse.val.denote V = com.denote V } := 
+unsafe def ex1_post_cse_post_dce :
+  { com : Com ExOp ∅ .nat // ∀ V, ex1_post_cse.val.denote V = com.denote V } :=
     (DCE.dce' ex1_post_cse.val)
 #eval ex1_post_cse_post_dce
 /-

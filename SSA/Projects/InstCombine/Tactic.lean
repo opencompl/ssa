@@ -3,6 +3,7 @@ import SSA.Projects.InstCombine.AliveStatements
 import SSA.Projects.InstCombine.Refinement
 import Mathlib.Tactic
 import SSA.Core.ErasedContext
+import SSA.Core.Tactic
 
 open MLIR AST
 open Std (BitVec)
@@ -36,10 +37,6 @@ macro "simp_alive_peephole" : tactic =>
       (
         dsimp only [Com.Refinement]
         intros Γv
-        simp [InstcombineTransformDialect.MOp.instantiateCom, InstcombineTransformDialect.instantiateMOp,
-          ConcreteOrMVar.instantiate, Vector.get, List.nthLe, List.length_singleton, Fin.coe_fin_one, Fin.zero_eta,
-          List.get_cons_zero, Function.comp_apply, InstcombineTransformDialect.instantiateMTy, Ctxt.empty_eq, Ctxt.DerivedCtxt.snoc,
-          Ctxt.DerivedCtxt.ofCtxt, List.map_eq_map, List.map, DialectMorphism.mapTy] at Γv
         simp_peephole at Γv
         /- note that we need the `HVector.toPair`, `HVector.toSingle`, `HVector.toTriple` lemmas since it's used in `InstCombine.Op.denote`
           We need `HVector.toTuple` since it's used in `MLIR.AST.mkOpExpr`. -/

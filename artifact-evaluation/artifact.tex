@@ -1,0 +1,159 @@
+% LaTeX template for Artifact Evaluation V20201122
+%
+% Prepared by Grigori Fursin with contributions from Bruce Childers,
+%   Michael Heroux, Michela Taufer and other colleagues.
+%
+% See examples of this Artifact Appendix in
+%  * SC'17 paper: https://dl.acm.org/citation.cfm?id=3126948
+%  * CGO'17 paper: https://www.cl.cam.ac.uk/~sa614/papers/Software-Prefetching-CGO2017.pdf
+%  * ACM ReQuEST-ASPLOS'18 paper: https://dl.acm.org/citation.cfm?doid=3229762.3229763
+%
+% (C)opyright 2014-2022
+%
+% CC BY 4.0 license
+%
+
+\documentclass{sigplanconf}
+
+\usepackage{hyperref}
+\usepackage{minted}
+
+\begin{document}
+
+\special{papersize=8.5in,11in}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% When adding this appendix to your paper, 
+% please remove above part
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\appendix
+\section{Artifact Appendix}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Abstract}
+
+{\em Obligatory}
+
+\subsection{Artifact check-list (meta-information)}
+
+% {\em Obligatory. Use just a few informal keywords in all fields applicable to your artifacts
+% and remove the rest. This information is needed to find appropriate reviewers and gradually 
+% unify artifact meta information in Digital Libraries.}
+
+{\small
+\begin{itemize}
+  \item {\bf Program: } The code repository for our framework along with the test suite.
+  \item {\bf Compilation: } Python for running the plotting scripts and the Lean4 toolchain, downloaded via \texttt{elan}
+  \item {\bf Run-time environment: } Any operating system that supports Docker.
+  \item {\bf Hardware: } Any x86-64 machine.
+  \item {\bf Output: } Key theorems of the paper will be built and shown to have no unsound axioms.
+  \item {\bf How much disk space required (approximately)?: } 10GB
+  \item {\bf How much time is needed to prepare workflow (approximately)?: } 1hr
+  \item {\bf How much time is needed to complete experiments (approximately)?: } 1hr
+  \item {\bf Publicly available?: } Yes
+  \item {\bf Code licenses (if publicly available)?: } MIT
+  \item {\bf Archived (provide DOI)?: }
+\end{itemize}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Description}
+
+\subsubsection{Hardware dependencies}
+
+None.
+
+\subsubsection{Software dependencies}
+
+Docker is necessary to run our artifact. The Docker image has all dependencies needed to compile our framework with Lean4.
+
+
+%COMMENT% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%COMMENT% \subsection{Installation}
+%COMMENT% 
+%COMMENT% {\em Obligatory}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Experiment workflow}
+
+Access the docker image \texttt{opencompl-ssa} from
+(\url{http://doi.org/TODO-TODO-TODO-DOI}), then run:
+
+\begin{minted}[fontsize=\scriptsize]{text}
+$ docker load -i opencompl-ssa.docker
+$ docker run -it siddudruid/opencompl-ssa
+# | This clears the build cache,
+# | fetches the maths library from the build cache,
+# | and builds our framework.
+$ cd /code/ssa && lake clean && lake exe cache get && lake build
+\end{minted}
+
+
+Upon running \texttt{make -j4 test}, the test output is printed to \texttt{stdout}.
+The scripts \texttt{speedup-time.py} and \texttt{speedup-rgn-time.py},
+produce PDFs \texttt{speedup-time.pdf} and \texttt{speedup-rgn-time.pdf}
+in the directory \texttt{/code/lz/test/lambdapure/compile/bench/}:
+
+\begin{minted}[fontsize=\footnotesize]{text}
+/code/ssa/related-work/alive/compile/bench/speedup-time.pdf
+\end{minted}
+
+To open the pdf file, keep the container running, and in another
+shell instance, use the \texttt{docker cp}
+command to copy files from within the container out to the host:
+
+\begin{minted}[fontsize=\footnotesize]{text}
+$ docker container ls # find   ID
+$ docker cp <CONTAINERID>:<PATH/INSIDE/CONTAINER> \
+            <PATH/OUTSIDE/CONTAINER>
+\end{minted}
+For more about \texttt{docker cp}, please see:
+(\url{https://docs.docker.com/engine/reference/commandline/cp/})
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Evaluation and expected results}
+
+On running \texttt{lake build}, the build succeeds with no errors.
+On applying the path \texttt{patch -p1 < axioms.diff} and rebuilding with \texttt{lake build},
+one should see the axioms that are used by each theorem. Check that these do not use \texttt{sorry},
+by running \texttt{lake build 2>\&1 | grep Axioms} and verify by looking that `sorry` is never on this list.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Full Workflow Example}
+
+% \begin{minted}[fontsize=\tiny]{text}
+% # Grab docker image from http://doi.org/10.5281/zenodo.5786074
+% $ curl https://zenodo.org/record/5786074/files/cgo22.docker?download=1 > cgo22.docker
+% $ docker load -i cgo22.docker
+% $ docker run -it siddudruid/cgo21-v4
+% $ su nonroot # switch to non-root user
+% $ export PATH=/code/llvm-project/build/bin:$PATH
+% $ export PATH=/code/lean4/build/release/stage1/bin:$PATH
+% $ export PATH=/code/lz/build/bin:$PATH
+% $ export LEANLIB=/code/lean4/build/release/stage1/lib
+% $ export LD_LIBRARY_PATH=$LEANLIB:$LD_LIBRARY_PATH
+% $ cd /code/lean4/build/release/ && make -j test # NO test failures
+% 100% tests passed, 0 tests failed out of 648
+% 
+% Total Test time (real) = 399.28 sec
+% [100%] Built target test
+% 
+% $ cd /code/lz/test/lambdapure/compile/bench && \
+% ./speedup-time.py --data --plot --nruns 10
+% 
+% $ cd /code/lz/test/lambdapure/compile/bench && \
+% ./speedup-rgn-time.py --data --plot --nruns 10
+% \end{minted}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% When adding this appendix to your paper, 
+% please remove below part
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\end{document}
+

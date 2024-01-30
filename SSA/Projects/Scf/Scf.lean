@@ -1,5 +1,6 @@
 import Mathlib.Logic.Function.Iterate
 import SSA.Core.Framework
+import SSA.Core.Tactic
 import SSA.Core.ErasedContext
 import SSA.Core.Util
 set_option pp.proofs false
@@ -111,7 +112,7 @@ namespace LoopBody.IndexInvariant
 /-- Evaluating a loop index invariant function is the same as evaluating it at `atZero` -/
 @[simp]
 theorem eval' {f : LoopBody t} (hf : LoopBody.IndexInvariant f) (i : Int) (v : t) :
-    f i v = f.atZero v := by 
+    f i v = f.atZero v := by
   unfold LoopBody.IndexInvariant at hf; rw [LoopBody.atZero, hf]
 
 /-- iterating a loop invariant function gives a well understood answer: the iterates of the function. -/
@@ -184,8 +185,8 @@ theorem constant (δ : Int) (i : Int) (vstart : α) :
 
 /-- iterate the CounterDecorator of a constant function. -/
 theorem constant_iterate {α : Type} (k : ℕ) (δ : Int) :
-    ((LoopBody.CounterDecorator δ (fun (i : Int) (v : α) => v))^[k]) = 
-    fun (args : ℤ × α) => (args.fst + k * δ, args.snd) := by 
+    ((LoopBody.CounterDecorator δ (fun (i : Int) (v : α) => v))^[k]) =
+    fun (args : ℤ × α) => (args.fst + k * δ, args.snd) := by
   funext ⟨i, v⟩
   induction k generalizing i v
   case h.zero =>

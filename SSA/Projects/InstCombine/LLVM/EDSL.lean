@@ -168,7 +168,7 @@ instance : AST.TransformReturn (MOp φ) (MTy φ) φ where
 -/
 
 def instantiateMTy (vals : Vector Nat φ) : (MTy φ) → InstCombine.Ty
-  | .bitvec w => .bitvec <| .concrete <| w.instantiate vals
+  | .bitvec w => .bitvec <| w.instantiate vals
 
 def instantiateMOp (vals : Vector Nat φ) : MOp φ → InstCombine.Op
   | .binary w binOp => .binary (w.instantiate vals) binOp

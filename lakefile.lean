@@ -12,6 +12,10 @@ lean_exe mlirnatural {
   root := `SSA.MLIRNatural
 }
 
+lean_exe ssaLLVMEnumerator {
+  root := `SSA.Projects.InstCombine.LLVM.Enumerator
+}
+
 -- PROJECTS
 -- ========
 

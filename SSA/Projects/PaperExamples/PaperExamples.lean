@@ -2,6 +2,7 @@ import Qq
 import Lean
 import Mathlib.Logic.Function.Iterate
 import SSA.Core.Framework
+import SSA.Core.Tactic
 import SSA.Core.Util
 import SSA.Projects.InstCombine.LLVM.Transform
 import SSA.Projects.MLIRSyntax.AST
