@@ -35,6 +35,8 @@ inductive MTy (φ : Nat)
 
 abbrev Ty := MTy 0
 
+-- Create a bitvec of width 'w'.
+-- TODO, NOTE: This cannot be called `bitvec` since it winds up being confused with `MTy.bitvec`.
 @[match_pattern] abbrev Ty.bitvec (w : Nat) : Ty := MTy.bitvec (.concrete w)
 
 instance : Repr (MTy φ) where
