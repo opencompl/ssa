@@ -36,3 +36,4 @@ test-semantics/*.mlir
 test-semantics/*.llvm
 *.olean
 lakefile.olean
+.lake/

@@ -37,7 +37,12 @@ def Tensor2d'.map (f : α → β) (t : Tensor2d' α) : Tensor2d' β where
 theorem Tensor2d'.map_functorial (g : β → γ) (f : α → β) (t : Tensor2d' α) : t.map (g ∘ f) = (t.map f).map g := rfl
 
 theorem Tensor2d'.map_error (f : α → β) : (Tensor2d'.error α).map f = Tensor2d'.error β := by {
-  simp[map, error]
+  simp [error, map]
+  unfold Matrix.map
+  simp [Matrix.of]
+  funext i j
+  obtain ⟨i, hi⟩ := i
+  contradiction
 }
 /-- K combinator / constant function. -/
 def const (a : α) (_b : β) : α := a

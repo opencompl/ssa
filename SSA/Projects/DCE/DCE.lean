@@ -266,6 +266,8 @@ theorem Deleted.pushforward_Valuation_snoc {Γ Γ' : Ctxt Ty} {ω : Ty} {delv : 
   (DEL.pushforward_Valuation V).snoc newv := by
     simp only [Deleted.pushforward_Valuation, Deleted.pullback_var, Ctxt.get?, Ctxt.Var.val_toSnoc,
       Ctxt.Var.succ_eq_toSnoc, Ctxt.Valuation.snoc_eq]
+    unfold Deleted.pushforward_Valuation Deleted.pullback_var
+    simp
     funext t var
     rcases var with ⟨i, hvar⟩
     split_ifs with EQN <;> (
@@ -329,6 +331,7 @@ partial def dce_ [OpSignature Op Ty] [OpDenote Op Ty]  {Γ : Ctxt Ty} {t : Ty} (
     | .ret v => -- If we have a `ret`, return it.
       ⟨Γ, Ctxt.Hom.id, ⟨.ret v, by
         intros V
+        unfold Ctxt.Valuation.comap
         simp[Ctxt.Valuation.comap]
         ⟩⟩
     | .lete (α := α) e body =>
@@ -386,6 +389,7 @@ def dce' [OpSignature Op Ty] [OpDenote Op Ty]  {Γ : Ctxt Ty} {t : Ty} (com : Co
   ⟨com'.changeVars hom, by
     intros V
     rw[hcom']
+    unfold Ctxt.Valuation.comap
     simp[Ctxt.Valuation.comap]⟩
 
 namespace Examples

@@ -1,17 +1,18 @@
 import Std.Data.BitVec
-import Mathlib.Data.StdBitVec.Lemmas
-
+--  import Mathlib.Data.StdBitVec.Lemmas
 import SSA.Projects.InstCombine.TacticAuto
 import SSA.Projects.InstCombine.ForStd
 import SSA.Projects.InstCombine.LLVM.Semantics
+import Std.Data.BitVec
+import Mathlib.Data.BitVec.Lemmas
 
 open Std
 open Std.BitVec
 open LLVM
 
 @[simp] lemma getLsb_negOne' (w : ℕ) (i : Fin w) :
-    getLsb (-1#w) ↑i :=
-  BitVec.getLsb_negOne ..
+    getLsb (-1#w) ↑i := by 
+  simp only [getLsb_val_eq_getLsb', getLsb'_neg_ofNat_one]
 
 theorem bitvec_AddSub_1043 :
  ∀ (w : Nat) (C1 Z RHS : BitVec w), (Z &&& C1 ^^^ C1) + 1 + RHS = RHS - (Z ||| ~~~C1)
@@ -106,13 +107,11 @@ theorem bitvec_AddSub_1624 :
 theorem bitvec_AndOrXor_135 :
  ∀ (w : Nat) (X C1 C2 : BitVec w), (X ^^^ C1) &&& C2 = X &&& C2 ^^^ C1 &&& C2
 := by alive_auto
-      done --ext
-
+      
 theorem bitvec_AndOrXor_144 :
  ∀ (w : Nat) (X C1 C2 : BitVec w), (X ||| C1) &&& C2 = (X ||| C1 &&& C2) &&& C2
 := by alive_auto
-      done --ext
-
+     
 theorem bitvec_AndOrXor_698 :
  ∀ (w : Nat) (a b d : BitVec w), ofBool (a &&& b == 0) &&& ofBool (a &&& d == 0) = ofBool (a &&& (b ||| d) == 0)
 := by alive_auto
@@ -500,19 +499,21 @@ theorem bitvec_InstCombineShift__422_1:
 := by alive_auto
       try sorry
 
+-- set_option maxRecDepth 9999 in
 theorem bitvec_InstCombineShift__422_2:
  ∀ (Y X C : BitVec 31), (Y + sshr X (BitVec.toNat C)) <<< C = Y <<< C + X &&& (-1) <<< C
-:= by alive_auto
-      try sorry
+:= by -- alive_auto -- TIMES OUT WITH MAX RECURSION DEPTH
+  try sorry
 
 theorem bitvec_InstCombineShift__440 :
  ∀ (w : Nat) (Y X C C2 : BitVec w), (Y ^^^ X >>> C &&& C2) <<< C = X &&& C2 <<< C ^^^ Y <<< C
 := by alive_auto
       try sorry
 
+-- set_option maxRecDepth 9999 in
 theorem bitvec_InstCombineShift__458:
  ∀ (Y X C : BitVec 31), (sshr X (BitVec.toNat C) - Y) <<< C = X - Y <<< C &&& (-1) <<< C
-:= by alive_auto
+:= by -- alive_auto -- TIMES OUT WITH MAX RECURSION DEPTH
       try sorry
 
 theorem bitvec_InstCombineShift__476 :

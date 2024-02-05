@@ -4,10 +4,6 @@ open Std
 
 namespace Std.BitVec
 
-def ofBool : (Bool) -> Std.BitVec 1
- | true   => 1
- | false  => 0
-
 notation:50 x " ≤ᵤ " y => BitVec.ule x y
 notation:50 x " <ᵤ " y => BitVec.ult x y
 notation:50 x " ≥ᵤ " y => BitVec.ule y x

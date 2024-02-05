@@ -154,10 +154,10 @@ If op2 is (statically or dynamically) equal to or larger than the number of
 bits in op1, this instruction returns a poison value.
 
 -/
-def shl? {m n k} (op1 : BitVec n) (op2 : BitVec m) : Option (BitVec k) :=
+def shl? {n} (op1 : BitVec n) (op2 : BitVec n) : Option (BitVec n) :=
   let bits := op2.toNat -- should this be toInt?
   if bits >= n then .none
-  else .some <| BitVec.zeroExtend k (op1 <<< op2)
+  else some (op1 <<< op2)
 
 /--
 This instruction always performs a logical shift right operation.
@@ -169,11 +169,10 @@ this instruction returns a poison value.
 
 Corresponds to `Std.BitVec.ushiftRight` in the `some` case.
 -/
-def lshr? {m n k} (op1 : BitVec n) (op2 : BitVec m) : Option (BitVec k) :=
+def lshr? {n} (op1 : BitVec n) (op2 : BitVec n) : Option (BitVec n) :=
   let bits := op2.toNat -- should this be toInt?
   if bits >= n then .none
-  else .some <| BitVec.zeroExtend k (op1 >>> op2)
-
+  else some (op1 >>> op2)
 
 /--
 This instruction always performs an arithmetic shift right operation,
@@ -184,10 +183,10 @@ this instruction returns a poison value.
 
 Corresponds to `Std.BitVec.sshiftRight` in the `some` case.
 -/
-def ashr? {m n k} (op1 : BitVec n) (op2 : BitVec m) : Option (BitVec k) :=
+def ashr? {n} (op1 : BitVec n) (op2 : BitVec n) : Option (BitVec n) :=
   let bits := op2.toNat -- should this be toInt?
   if bits >= n then .none
-  else .some <| BitVec.zeroExtend k (op1 >>>ₛ op2)
+  else some (op1 >>>ₛ op2)
 
 /--
  If the condition is an i1 and it evaluates to 1, the instruction returns the first value argument; otherwise, it returns the second value argument.

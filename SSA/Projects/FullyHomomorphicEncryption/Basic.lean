@@ -98,28 +98,17 @@ theorem f_deg_eq : (f q n).degree = 2^n := by
   <;> rw [Polynomial.degree_X_pow]
   simp
   simp [Polynomial.degree_one]
-  have h : 0 < 2^n := by
-    apply Nat.one_le_two_pow
-  have h' := WithBot.coe_lt_coe.2 h
-  simp [Preorder.toLT, WithBot.preorder]
-  have h0 : @OfNat.ofNat (WithBot ℕ) 0 Zero.toOfNat0  = @WithBot.some ℕ 0 := by
-    simp [OfNat.ofNat]
-  have h2 : @OfNat.ofNat (WithBot ℕ) 2 instOfNat = @WithBot.some ℕ 2 := by
-    simp [OfNat.ofNat]
-  have h2n : @HPow.hPow (WithBot ℕ) ℕ (WithBot ℕ) instHPow 2 n = @WithBot.some ℕ (@HPow.hPow ℕ ℕ ℕ instHPow 2 n) := by
-    rw [h2, WithBot.coe_pow]
-  rw [h0, h2n]
-  exact h'
-  done
+  simp [Preorder.toLT, WithBot.preorder, OfNat.ofNat]
+  simp [Zero.zero, WithTop.coe_zero, WithTop.coe_one, One.one]
+  norm_cast
+  exact Fin.size_pos'
 
 /-- Charaterizing `f`: `f` is monic -/
 theorem f_monic : Monic (f q n) := by
   have hn : 2^n = (2^n - 1) + 1 := by rw [Nat.sub_add_cancel (Nat.one_le_two_pow n)]
-  have hn_minus_1 : degree 1 ≤ ↑(2^n - 1) := by
-    rw [Polynomial.degree_one (R := (ZMod q))]; simp
   rw [f, hn]
-  apply Polynomial.monic_X_pow_add hn_minus_1
-  done
+  apply Polynomial.monic_X_pow_add
+  simp
 
 /--
 The basic ring of interest in this dialect is `R q n` which corresponds to
@@ -260,12 +249,13 @@ theorem R.representative_fromPoly_toFun : forall a : (ZMod q)[X], ((R.fromPoly (
   intro a
   simp [R.representative]
   have ⟨i,⟨hiI,hi_eq⟩⟩ := R.fromPoly_rep'_eq_ideal q n a
-  simp[FunLike.coe] at hi_eq
-  rw [hi_eq]
+  simp [MonoidHomClass.toMonoidHom]
   apply Polynomial.modByMonic_eq_of_dvd_sub (f_monic q n)
   ring_nf
-  apply Ideal.mem_span_singleton.1 hiI
-  done
+  apply Ideal.mem_span_singleton.1
+  rw [hi_eq]
+  ring_nf
+  assumption
 
 theorem R.representative_fromPoly : forall a : (ZMod q)[X], (R.fromPoly (n:=n) a).representative = a %ₘ (f q n) := by
   intro a
@@ -585,8 +575,8 @@ theorem coeff_modByMonic_degree_lt_f {q n i : ℕ} [Fact (q > 1)] (p : (ZMod q)[
 /-- The coefficient of `fromPoly p` is the coefficient of `p` modulo `f q n`. -/
 @[simp]
 theorem R.coeff_fromPoly {q n : ℕ} [Fact (q > 1)] (p : (ZMod q)[X]) : R.coeff (R.fromPoly (q := q) (n := n) p) = Polynomial.coeff (p %ₘ (f q n)) := by
-  simp[R.coeff]
-  simp[FunLike.coe]
+  unfold R.coeff
+  simp [R.coeff]
   have H := R.representative_fromPoly_toFun (a := p) (n := n)
   norm_cast at H ⊢
 

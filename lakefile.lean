@@ -48,7 +48,7 @@ lean_lib AliveExamples {
 
 -- NOTE: this must be 'm'mathlib, as indicated from:
 --  https://github.com/leanprover-community/mathlib4#using-mathlib4-as-a-dependency
-require mathlib from git "https://github.com/leanprover-community/mathlib4" @ "bitvec-ring-and-ext"
+require mathlib from git "https://github.com/leanprover-community/mathlib4" @ "bitvec-commring"
 
 require Cli from git "https://github.com/mhuisi/lean4-cli.git" @ "nightly"
 

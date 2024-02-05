@@ -101,7 +101,7 @@ theorem eq_invariant_fn
     intros i j v
     rw [hf i v, hf j v]
   case right =>
-    simp [atZero]
+    unfold atZero
     funext v
     rw [hf 0 v]
 

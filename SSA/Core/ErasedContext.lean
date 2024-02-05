@@ -434,7 +434,11 @@ theorem toHom_zero {Γ : Ctxt Ty} {h : Valid Γ Γ 0} :
 @[simp]
 theorem toHom_unSnoc {Γ₁ Γ₂ : Ctxt Ty} (d : Diff (Γ₁.snoc t) Γ₂) :
     toHom (unSnoc d) = fun _ v => (toHom d) v.toSnoc := by
-  simp only [unSnoc, toHom, Var.toSnoc, Nat.add_assoc, Nat.add_comm 1]
+  unfold unSnoc Var.toSnoc toHom
+  simp
+  funext x v
+  congr 1
+  rw [Nat.add_assoc, Nat.add_comm 1]
 
 def add : Diff Γ₁ Γ₂ → Diff Γ₂ Γ₃ → Diff Γ₁ Γ₃
   | ⟨d₁, h₁⟩, ⟨d₂, h₂⟩ => ⟨d₁ + d₂, fun h => by

@@ -377,7 +377,7 @@ unsafe def State.cseExpr
         intros V
         simp [E, hargs', Expr.denote_unfold]
         congr 1
-        simp [Ctxt.Valuation.eval] at hargs'
+        unfold Ctxt.Valuation.eval at hargs'
         rw [hargs']
         rw [hregArgs']
         done

@@ -7,7 +7,9 @@ import SSA.Core.Util
 import SSA.Projects.InstCombine.LLVM.Transform
 import SSA.Projects.MLIRSyntax.AST
 import SSA.Projects.MLIRSyntax.EDSL
-import Mathlib.Data.StdBitVec.Lemmas
+import Std.Data.BitVec
+import Mathlib.Data.BitVec.Lemmas
+-- import Mathlib.Data.StdBitVec.Lemmas
 
 set_option pp.proofs false
 set_option pp.proofs.withType false

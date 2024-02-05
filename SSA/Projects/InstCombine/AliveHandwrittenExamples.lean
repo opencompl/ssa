@@ -1,13 +1,17 @@
 import Std.Data.Nat.Lemmas
 -- import Std.Data.Nat.Bitwise | we don't have the right lemmas.
 import Std.Data.Int.Lemmas
-import SSA.Projects.InstCombine.FromStd
+import Std.Data.BitVec
+import Mathlib.Data.Nat.Basic
+import Mathlib.Data.Int.Basic
+import Mathlib.Data.BitVec.Lemmas
 import SSA.Projects.InstCombine.LLVM.EDSL
 import SSA.Projects.InstCombine.AliveStatements
 import SSA.Projects.InstCombine.Refinement
 import SSA.Projects.InstCombine.Tactic
 import SSA.Projects.InstCombine.Base
 import SSA.Core.ErasedContext
+import Mathlib.Tactic
 
 open MLIR AST
 open Std (BitVec)
@@ -40,7 +44,7 @@ theorem BitVec.width_zero_eq_zero (x : BitVec 0) : x = BitVec.ofNat 0 0 :=
 @[simp]
 theorem BitVec.with_zero (x : BitVec 0) : BitVec.toInt x = 0 := by
   rw [BitVec.width_zero_eq_zero x]
-  simp
+  simp (config := {unfoldPartialApp := true, decide := true})
 
 theorem BitVec.ofInt_toFin_nonneg (w : ℕ) (v : Int) {v' : ℕ} (hv : v = ↑v') :
   (BitVec.ofInt w v).toFin = Fin.ofNat' v' (by simp) := by
@@ -52,7 +56,7 @@ theorem BitVec.toNat_ofInt_1 [WNEQ0 : Fact (0 < w)] : BitVec.toNat (BitVec.ofInt
   simp [BitVec.ofNat, BitVec.toNat, BitVec.ofInt, BitVec.toFin, Fin.val, Fin.ofNat']
   apply Nat.mod_eq_of_lt
   cases w
-  . exfalso; simp only[] at WNEQ0; apply Fact.elim WNEQ0
+  . exfalso; simp (config := {decide := true}) only [] at WNEQ0; apply Fact.elim WNEQ0
   . simp
 
 theorem BitVec.ofInt_Nat_nonneg (w : ℕ) (v : Int) {v' : ℕ} (hv : v = ↑v' := by simp) :
@@ -84,9 +88,7 @@ theorem BitVec.toInt_ofInt_width_one_one : BitVec.toInt (BitVec.ofInt 1 1) = -1 
 
 @[simp]
 theorem BitVec.toInt_ofInt_zero : BitVec.toInt (BitVec.ofInt w 0) = 0 := by
-  simp [BitVec.toInt, BitVec.ofInt]
-  intros h
-  simp [BitVec.msb, BitVec.getMsb, BitVec.getLsb] at h
+  simp [BitVec.msb, BitVec.getMsb, BitVec.getLsb, BitVec.ofInt, BitVec.toInt]
 
 theorem BitVec.eq_zero_of_toInt_zero (x : BitVec w) (h : BitVec.toInt x = 0) : x = 0 := by
   obtain ⟨x, hx⟩ := x
@@ -95,10 +97,9 @@ theorem BitVec.eq_zero_of_toInt_zero (x : BitVec w) (h : BitVec.toInt x = 0) : x
   case pos h' =>
     norm_cast at h'
     have h2 :  (↑x : Int) =  ↑(2^w) := by
-      simp_all [Nat.cast, NatCast.natCast];
       simp at h
       linarith
-    have h3 : x = 2^w := by simp [Nat.cast, NatCast.natCast] at h2; exact h2
+    have h3 : x = 2^w := by linarith
     exfalso
     linarith
   case neg h' =>
@@ -118,35 +119,47 @@ theorem BitVec.toInt_ofInt_1_width_one :
 
 @[simp]
 theorem BitVec.neg_zero :
-    - (BitVec.ofNat w 0 ) = BitVec.ofNat w 0 := by simp [BitVec.ofNat]
+    - (BitVec.ofNat w 0 ) = BitVec.ofNat w 0 := by
+  unfold BitVec.ofNat Neg.neg BitVec.instNegBitVec BitVec.neg
+  simp
+
+@[simp]
+theorem BitVec.ofInt_1 [hone_lt_w: Fact (1 < w)] :
+    (BitVec.ofInt w 1) = 1 := by
+  simp [BitVec.ofInt]
 
 -- if w = 0. then value is 0
 -- if w = 1, then value is -1.
 @[simp]
 theorem BitVec.toInt_ofInt_1 [hone_lt_w: Fact (1 < w)] :
     BitVec.toInt (BitVec.ofInt w 1) = 1 := by
-  cases w
-  case zero => simp at hone_lt_w; apply False.elim hone_lt_w.out
-  case succ w' =>
-    cases w'
-    case zero => simp at hone_lt_w; apply False.elim hone_lt_w.out
-    case succ w'' =>
-      simp [BitVec.toInt, BitVec.ofInt]
-      simp [BitVec.msb, BitVec.getMsb, BitVec.getLsb]
-      have hone : 1 % 2^(Nat.succ (Nat.succ w'')) = 1 := by
-        apply Nat.mod_eq_of_lt; simp
-      rw[hone, Nat.land_comm, Nat.and_one_is_mod]
-      rw[Nat.pow_mod, Nat.mod_self]
-      cases w''
-      case zero =>
+    simp [BitVec.toInt]
+    simp [BitVec.msb]
+    simp [BitVec.getMsb]
+    have h' : 0 < w := by
+      obtain ⟨this⟩ :=  hone_lt_w
+      linarith
+    rcases w with rfl | rfl | w
+    · simp at h'
+    . exfalso
+      obtain ⟨h⟩ := hone_lt_w
+      simp at h
+    · simp [h']
+      simp [BitVec.getLsb]
+      have hone : 1 % 2^(Nat.succ (Nat.succ w)) = 1 := by
+        rw [Nat.mod_eq_of_lt]
+        apply Nat.one_lt_two_pow
         simp
-      case succ w'' =>
-        rw[Nat.zero_pow (by simp)]
-        rw[Nat.zero_mod]
-        simp
-        apply Int.emod_eq_of_lt <;> try simp
-        . apply one_lt_pow; simp; linarith
-
+      have honez : (1 : ℤ) % 2^(Nat.succ (Nat.succ w)) = 1 := by norm_cast
+      simp [hone, honez]
+      simp [Nat.testBit]
+      simp [Nat.shiftRight_eq_div_pow]
+      have two_pow_w_recip : 1 / 2^(w + 1) = 0 := by
+         apply Nat.div_eq_of_lt
+         apply Nat.one_lt_two_pow
+         linarith
+      simp [two_pow_w_recip]
+      rfl
 
 @[simp]
 theorem BitVec.toNat_ofInt_one_width_zero : BitVec.toNat (BitVec.ofInt (n := 0) 1) = 0 := rfl
@@ -159,22 +172,22 @@ theorem BitVec.toNat_ofInt_one [hzero_lt_w: Fact (0 < w)] : BitVec.toNat (BitVec
   cases w
   case zero => simp at hzero_lt_w; apply False.elim hzero_lt_w.out
   case succ w' =>
-      simp [BitVec.toNat, BitVec.ofInt]
-      simp [Fin.val, BitVec.ofNat]
+      unfold BitVec.toNat BitVec.ofInt Fin.val BitVec.ofNat
+      simp
       apply Nat.mod_eq_of_lt; simp
 
 @[simp]
 theorem BitVec.ofNat_toNat_zero :
-BitVec.toNat (BitVec.ofInt w 0) = 0 :=
-  by simp [BitVec.toNat, BitVec.ofInt, BitVec.toFin, BitVec.ofNat, OfNat.ofNat]
+BitVec.toNat (BitVec.ofInt w 0) = 0 := by
+  unfold BitVec.toNat BitVec.ofInt BitVec.toFin BitVec.ofNat OfNat.ofNat instOfNatInt instOfNatNat
+  simp
 
 
 @[simp]
 theorem BitVec.zeroExtend_id (b : BitVec w) :
   BitVec.zeroExtend w b = b := by
   obtain ⟨bval, hbval⟩ := b
-  simp [BitVec.zeroExtend, BitVec.ofNat, BitVec.toNat, Fin.ofNat', BitVec.toFin, Fin.val]
-  apply Nat.mod_eq_of_lt hbval
+  simp [BitVec.zeroExtend, BitVec.zeroExtend', BitVec.ofNat, BitVec.toNat, Fin.ofNat', BitVec.toFin, Fin.val]
 
 @[simp]
 lemma BitVec.ofInt_ofNat (w n : Nat)  :
@@ -194,12 +207,8 @@ theorem BitVec.ult_toNat (x y : BitVec n) :
 
 
 -- Std theorem
-theorem Std.BitVec.getLsb_ge (x : BitVec w) (hi : i ≥ w) : BitVec.getLsb x i = false := by sorry
+theorem Std.BitVec.getLsb_ge (x : BitVec w) (hi : i ≥ w) : BitVec.getLsb x i = false := by exact?
 
-
-
-
-#check BitVec.getLsb_xor
 /-- The usual theorem is stated with nat as the index. -/
 @[simp] lemma BitVec.getLsb_xor' (x y : BitVec w) (i : Nat) :
     (x ^^^ y).getLsb i = xor (x.getLsb i) (y.getLsb i) := by
@@ -207,30 +216,17 @@ theorem Std.BitVec.getLsb_ge (x : BitVec w) (hi : i ≥ w) : BitVec.getLsb x i =
     rcases hi with h | h
     . have hi : i = (Fin.mk i h).val := rfl
       rw [hi]
-      apply BitVec.getLsb_xor
+      apply BitVec.getLsb'_xor
     . simp [Std.BitVec.getLsb_ge _ h]
 
 
-@[simp] lemma BitVec.ushr_bitvec_eq (x y : BitVec w) :
-    (x >>> y) = BitVec.ofNat w (x.toNat >>> y.toNat) := rfl
-
--- std theorem
--- theorem Std.Data.Nat.Bitwise.Nat.testBit_shiftRight{i : Nat} {j : Nat} (x : Nat) :
---     Nat.testBit (Nat.shiftRight x i) j = Nat.testBit x (i + j) := by 
-
--- shift right rule
-lemma BitVec.getLsb_ushr' (x : BitVec w) (y : Nat) (i : Fin w) :
-    (x >>> y).getLsb i = if (y > i) then false else (x.getLsb (i - y)) := by
-  have ⟨i, hi⟩ := i
-  unfold HShiftRight.hShiftRight
-  unfold BitVec.instHShiftRightBitVecNat
-  unfold BitVec.ushiftRight
-  simp
-  unfold HShiftRight.hShiftRight instHShiftRight ShiftRight.shiftRight Nat.instShiftRightNat
-  have ⟨x, hx⟩ := x
-  simp [BitVec.getLsb]
-  simp [Nat.and_two_pow]
-  sorry
+/-
+https://github.com/leanprover/std4/commit/ecf1ec23eac8997d5964d480511ba93970fa455b#diff-8f36f4c14ec3f02f7b8ea0a193114c273871d6b0ddad6083cd74090b3befcb1eR227-R229
+This exists in std4 as of 3 days ago.
+We should rebase on mathlib4.
+-/
+lemma BitVec.getLsb'_ushr (x : BitVec w) (y : Nat) (i : Fin w) :
+  (x >>> y).getLsb' i = if (y > i) then false else (x.getLsb' ⟨i - y, by sorry ⟩) := by sorry -- std sorry
 
 end BitVecTheory
 
@@ -254,7 +250,7 @@ theorem LLVM.lshr?_eq_some {a b : BitVec w} (hb : b.toNat < w) : LLVM.lshr? a b 
 
 /-- Note that this assumes that the input and output bitwidths are the same, which is by far the common case. -/
 @[simp]
-theorem LLVM.lshr?_eq_none {a b : BitVec w} (hb : b.toNat ≥ w) : LLVM.lshr? (k := w) a b = .none := by
+theorem LLVM.lshr?_eq_none {a b : BitVec w} (hb : b.toNat ≥ w) : LLVM.lshr? a b = .none := by
   simp only [LLVM.lshr?]
   split_ifs; simp
 
@@ -295,6 +291,7 @@ theorem LLVM.select?_eq_some {w : Nat} {c : BitVec 1} {x y : Option (BitVec w)} 
     rcases c with rfl | rfl | hcontra <;> simp at hc ⊢
     contradiction
   rcases hc' with rfl | rfl <;> simp
+  · rfl
 
 @[simp]
 theorem LLVM.sdiv?_denom_zero {w : Nat} {a b : BitVec w} (hb : b = 0) : LLVM.sdiv? a b = none :=
@@ -340,6 +337,12 @@ def alive_DivRemOfSelect_tgt (w : Nat) :=
     "llvm.return" (%v1) : (_) -> ()
   }]
 
+@[simp]
+theorem BitVec.ofNat_toNat_zero :
+BitVec.toNat (BitVec.ofInt w 0) = 0 := by
+  simp[BitVec.toNat, BitVec.ofInt, BitVec.toFin, BitVec.ofNat, OfNat.ofNat]
+  norm_cast
+
 theorem alive_DivRemOfSelect (w : Nat) :
     alive_DivRemOfSelect_src w ⊑ alive_DivRemOfSelect_tgt w := by
   unfold alive_DivRemOfSelect_src alive_DivRemOfSelect_tgt
@@ -352,7 +355,7 @@ theorem alive_DivRemOfSelect (w : Nat) :
     LLVM.and?, LLVM.or?, LLVM.xor?, LLVM.add?, LLVM.sub?,
     LLVM.mul?, LLVM.udiv?, LLVM.sdiv?, LLVM.urem?, LLVM.srem?,
     LLVM.sshr, LLVM.lshr?, LLVM.ashr?, LLVM.shl?, LLVM.select?,
-    LLVM.const?, LLVM.icmp?,
+    LLVM.const?, LLVM.icmp?, LLVM.udiv?,
     HVector.toTuple, List.nthLe, bitvec_minus_one]
   intro y x c
   simp only [List.length_singleton, Fin.zero_eta, List.get_cons_zero, List.map_eq_map, List.map_cons,
@@ -372,7 +375,7 @@ theorem alive_DivRemOfSelect (w : Nat) :
        simp
      . subst h; simp
        cases' x with vx <;>
-       cases' y with vy <;> simp
+       cases' y with vy <;> simp [LLVM.udiv?]
 
 end DivRemOfSelect
 
@@ -539,21 +542,20 @@ def alive_simplifyMulDivRem805 (w : Nat) :
       rcases w with zero | w <;> try simp only [Nat.zero_eq, BitVec.ofNat_eq_ofNat,
         eq_iff_true_of_subsingleton, LLVM.sdiv?_denom_zero, BitVec.Refinement.none_left]
       simp [BitVec.ofInt_ofNat _ 3, BitVec.ofInt_ofNat _ 1, BitVec.ofInt_ofNat _ 0]
-      have hval : val = -1 ∨ val = 0 ∨ val = 1 ∨ val = 2 ∨ val ≥ 2 ∨ val ≤ -2 := by sorry
-      rcases hval with rfl | rfl | rfl | rfl | hval | hval <;> try simp
-      . conv =>
+      have hval : val = -1 ∨ val = 1 ∨ val = 2 ∨ val ≥ 2 ∨ val ≤ -2 := by sorry -- my sorry
+      rcases hval with rfl | rfl | rfl | hval | hval <;> try simp
+      . /- -1 -/
+        conv =>
         rewrite [BitVec.ult_toNat (BitVec.ofNat (Nat.succ w) 0) (BitVec.ofNat (Nat.succ w) 3)]
-        simp only [BitVec.ofNat_eq_ofNat, ne_eq, BitVec.ofNat_eq_mod_two_pow, Nat.zero_mod]
-        rcases w with zero | w'
-        . simp [Nat.pow_succ]
-        . simp [Nat.pow_succ]; ring_nf
-          have h3 : 3 % (2 ^ w' * 4) = 3 := by sorry
-          simp [h3]
-          sorry -- We need to fix the semantics of sdiv for this to go through.
-      . sorry
-      . sorry
-      . sorry
-      . sorry
+        sorry
+      . /- 1 -/
+        sorry
+      . /- 2 -/
+        sorry
+      . /- >= 2-/
+        sorry
+      . /- <= -2 -/
+        sorry
 
 /-
 Name: MulDivRem:290
@@ -593,34 +595,47 @@ def MulDivRem290_rhs (w : ℕ) :
 
 def alive_simplifyMulDivRem290 (w : Nat) :
   MulDivRem290_lhs w ⊑ MulDivRem290_rhs w := by
-  simp only [Com.Refinement]; intros Γv
-  simp only [MulDivRem290_lhs, MulDivRem290_rhs,
+  simp (config := { unfoldPartialApp := true, decide := true}) only [Com.Refinement]; intros Γv
+  simp (config := { unfoldPartialApp := true, decide := true}) only [MulDivRem290_lhs, MulDivRem290_rhs,
     InstCombine.Ty.bitvec, const, shl, mul, Ctxt.get?, Var.zero_eq_last, add, icmp, select]
   simp_peephole [MOp.sdiv, MOp.binary, MOp.BinaryOp.shl, MOp.shl, MOp.mul] at Γv
   intros x y
-  simp only [InstCombine.Op.denote, pairBind, HVector.toPair, HVector.toTuple, Function.comp_apply, HVector.toTriple, bind_assoc]
-  simp only [bind, Option.bind, LLVM.const?, LLVM.shl?, ge_iff_le, BitVec.zeroExtend_id, LLVM.mul?]
+  simp (config := { unfoldPartialApp := true, decide := true}) [InstCombine.Op.denote, pairBind, HVector.toPair, HVector.toTuple, Function.comp_apply, HVector.toTriple, bind_assoc]
+  simp (config := { unfoldPartialApp := true, decide := true}) [bind, Option.bind, LLVM.const?, LLVM.shl?, ge_iff_le, BitVec.zeroExtend_id, LLVM.mul?]
   cases x
-  case none => cases y <;> simp
+  case none => cases y <;> simp (config := { unfoldPartialApp := true, decide := true})
   case some x =>
-    cases y <;> try simp
+    cases y <;> try simp (config := { unfoldPartialApp := true, decide := true})
     case none =>
-      split_ifs <;> simp
+      split_ifs <;> simp (config := { unfoldPartialApp := true, decide := true})
     case some y =>
-      split_ifs <;> simp
+      split_ifs <;> simp (config := { unfoldPartialApp := true, decide := true})
       case neg hwx =>
-        simp only [HShiftLeft.hShiftLeft, BitVec.shiftLeft, ShiftLeft.shiftLeft, Nat.shiftLeft_eq']
-        cases w <;> try simp
+        unfold HShiftLeft.hShiftLeft BitVec.instHShiftLeftBitVec
+        simp (config := { unfoldPartialApp := true, decide := true}) [HShiftLeft.hShiftLeft, BitVec.shiftLeft, ShiftLeft.shiftLeft]
+        unfold HShiftLeft.hShiftLeft instHShiftLeft ShiftLeft.shiftLeft Nat.instShiftLeftNat
+        simp (config := { unfoldPartialApp := true, decide := true})
+        simp [Nat.shiftLeft_eq]
+        cases w <;> try simp (config := { unfoldPartialApp := true, decide := true})  <;> try ring_nf
+        case zero => apply Subsingleton.elim
         case succ w' =>
-        rw[BitVec.toNat_ofInt_1 (WNEQ0 := Fact.mk (by simp))]
-        simp only [HMul.hMul, Mul.mul, BitVec.mul, Fin.mul, Fin.ofNat', BitVec.toNat, Nat.mul_eq,
-          BitVec.ofNat, BitVec.ofFin.injEq, Fin.mk.injEq]
-        norm_num
-        conv =>
-          lhs
-          rw[Nat.mul_mod, Nat.mod_mod, ← Nat.mul_mod]
-        congr 1
-        ring
+          rw[BitVec.toNat_ofInt_1 (WNEQ0 := Fact.mk (by simp))]
+          ring_nf
+          simp (config := { unfoldPartialApp := true, decide := true}) [HMul.hMul, Mul.mul, BitVec.mul, Fin.mul, Fin.ofNat', BitVec.toNat, Nat.mul_eq,
+            BitVec.ofNat, BitVec.ofFin.injEq, Fin.mk.injEq]
+          obtain ⟨x, hx⟩ := x
+          obtain ⟨y, hy⟩ := y
+          simp
+          simp at hwx
+          have hx' : 2^ x < 2^ (Nat.succ w') := by
+            apply Nat.pow_lt_pow_of_lt_right
+            apply Nat.lt_succ_self
+            apply hwx
+          have hx'' :  2 ^ x % 2 ^ Nat.succ w' = 2 ^ x := by
+            apply Nat.mod_eq_of_lt
+            apply hx'
+          rw [hx'']
+          ring_nf
 
 end MulDivRem
 
@@ -684,7 +699,7 @@ def alive_simplifyAndOrXor2515 (w : Nat) :
     . simp only [ge_iff_le, LLVM.lshr?_eq_some lt, BitVec.ushiftRight_eq,
       BitVec.Refinement.some_some]
       ext i
-      simp only [BitVec.getLsb_xor, BitVec.getLsb_ushr']
+      simp only [BitVec.getLsb'_xor , BitVec.getLsb'_ushr]
       split_ifs <;> try simp
     . have hc2 : c2.toNat ≥ w := by linarith
       simp [LLVM.lshr?_eq_none hc2]
@@ -762,18 +777,23 @@ open LLVMTheory
 @[simp]
 theorem BitVec.ofBool_neq_1 (b : Bool) : BitVec.ofBool b ≠ (BitVec.ofNat 1 1) ↔ (BitVec.ofBool b) = (BitVec.ofNat 1 0) := by
   constructor <;> (intros h; cases b <;> simp at h; simp [BitVec.ofBool])
+  · intros h
+    contradiction
+  · contradiction
 
 @[simp]
 theorem BitVec.ofBool_neq_0 (b : Bool) : BitVec.ofBool b ≠ (BitVec.ofNat 1 0) ↔ (BitVec.ofBool b) = (BitVec.ofNat 1 1) := by
-  constructor <;> (intros h; cases b <;> simp at h; simp [BitVec.ofBool])
+  constructor <;> (intros h; cases b <;> simp at h <;> simp_all [BitVec.ofBool, h] <;> try contradiction)
+  · intros h
+    contradiction
 
 @[simp]
 theorem BitVec.ofBool_eq_1 (b : Bool) : BitVec.ofBool b = (BitVec.ofNat 1 1) ↔ b = True := by
-  constructor <;> (intros h; cases b <;> simp at h; simp [BitVec.ofBool])
+  constructor <;> (intros h; cases b <;> simp at h <;> simp_all [BitVec.ofBool, h] <;> contradiction)
 
 @[simp]
 theorem BitVec.ofBool_eq_0 (b : Bool) : BitVec.ofBool b = (BitVec.ofNat 1 0) ↔ b = False := by
-  constructor <;> (intros h; cases b <;> simp at h; simp [BitVec.ofBool])
+  constructor <;> (intros h; cases b <;> simp at h <;> simp [BitVec.ofBool] <;> contradiction)
 
 @[simp]
 theorem BitVec.neg_of_ofNat_0_minus_self (x : BitVec w) : (BitVec.ofNat w 0) - x = -x := by rfl
@@ -781,9 +801,85 @@ theorem BitVec.neg_of_ofNat_0_minus_self (x : BitVec w) : (BitVec.ofNat w 0) - x
 @[simp]
 theorem BitVec.neg_of_ofInt_0_minus_self (x : BitVec w) : (BitVec.ofInt w 0) - x = -x := by rfl
 
+private theorem Nat.eq_one_of_mod_two_ne_zero (n : Nat) (hn : n % 2 != 0) : n % 2 = 1 := by
+  simp at hn
+  assumption
 
+theorem Nat.sub_mod_of_lt (n x : Nat) (hxgt0 : x > 0) (hxltn : x < n) : (n - x) % n = n - x := by
+  rcases n with zero | n <;> simp
+  apply Nat.sub_lt _ hxgt0
+  simp only [Nat.zero_lt_succ]
+
+
+#check Std.BitVec.toNat
+-- https://github.com/leanprover/std4/blob/276953b13323ca151939eafaaec9129bf7970306/Std/Data/BitVec/Lemmas.lean#L329-L330
+-- This was added 3 days ago by Joe Hendrix.
+theorem Std.BitVec.neg_toNat{n : Nat} (x : Std.BitVec n) : Std.BitVec.toNat (-x) = (2 ^ n - Std.BitVec.toNat x) % 2 ^ n := by
+  obtain ⟨x, hx⟩ := x
+  simp [BitVec.toNat, Neg.neg]
+
+
+
+/-- the value of (x / 2^ (w - 1)) can be either 1 or 0 if (x < 2^w) -/
+private lemma Nat.div_two_pow_pred {w : Nat} (hx : x < 2 ^ w) : x / 2 ^ (w - 1) = if 2 ^ (w - 1) <= x then 1 else 0 := by
+  split_ifs
+  case pos h =>
+    rw [Nat.div_eq_sub_div]
+    simp
+    apply Nat.div_eq_of_lt
+    rcases w with rfl | w' <;> simp_all
+    . apply Nat.sub_lt_right_of_lt_add h _
+      ring_nf
+      rw [← Nat.pow_succ]
+      assumption
+    . simp
+    . assumption
+  case neg h =>
+    apply Nat.div_eq_of_lt
+    linarith
+
+-- rhs :  if BitVec.toNat x < 2 ^ w' then x else x - 2#(Nat.succ w') ^ Nat.succ w'
+-- lhs:
+-- ~~~~
+--   (if (BitVec.toNat x / 2 ^ (Nat.succ w' - 1) % 2 != 0) = true then ↑(BitVec.toNat x) - 2#(Nat.succ w') ^ Nat.succ w'
+--   else ↑(BitVec.toNat x))
+-- lhs:
+-- ~~~~
+--   (if (BitVec.toNat x / 2 ^ (w') % 2 != 0) = true then ↑(BitVec.toNat x) - 2#(Nat.succ w') ^ Nat.succ w'
+--   else ↑(BitVec.toNat x))
+-- lhs:
+-- ~~~~
+--   (if BitVec.toNat x >= 2 ^ (w') then ↑(BitVec.toNat x) - 2#(Nat.succ w') ^ Nat.succ w'
+--   else ↑(BitVec.toNat x))
+theorem BitVec.toInt_eq (w : Nat) (x : BitVec w): BitVec.toInt x = if x.toNat < (2 : Nat)^(w - 1) then x else x - 2^w := by
+  cases w <;> simp
+  . apply Subsingleton.elim
+  . case succ w' =>
+      unfold BitVec.toInt BitVec.msb BitVec.getMsb BitVec.getLsb Nat.testBit
+      simp
+      rw [Nat.shiftRight_eq_div_pow]
+      have hdiv : (BitVec.toNat x) / 2 ^ w' = (BitVec.toNat x) / 2^(Nat.succ w' - 1) := by simp
+      rw [hdiv]
+      rw [Nat.div_two_pow_pred, Nat.succ_sub_one]
+      have hcases : (BitVec.toNat x < 2 ^ w') ∨ (BitVec.toNat x ≥ 2 ^ w') := by
+        apply lt_or_ge
+      cases hcases
+      case inl hle =>
+        simp [hle]
+        have hle' : ¬ (2 ^ w' ≤ BitVec.toNat x) := by linarith
+        simp [hle', bne, Nat.cast, NatCast.natCast]
+      case inr hgt =>
+        have hgt' : ¬ (BitVec.toNat x < 2 ^ w') := by linarith
+        simp at hgt
+        simp [hgt, hgt', bne, Nat.cast, NatCast.natCast, BEq.beq, Nat.beq]
+      . exact x.toFin.2
+
+-- use above theorem.
 theorem BitVec.toInt_neg (x : BitVec w) :
     BitVec.toInt (- x) = - (BitVec.toInt x) := by sorry
+
+
+
 
 def alive_simplifySelect764 (w : Nat) :
   Select746_lhs w ⊑ Select746_rhs w := by

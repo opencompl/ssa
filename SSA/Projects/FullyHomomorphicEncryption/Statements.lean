@@ -63,10 +63,10 @@ theorem R.toTensor_getD [hqgt1 : Fact (q > 1)] (a : R q n) (i : Nat) : a.toTenso
   have hLength : (List.map (fun i => ZMod.toInt q (Polynomial.coeff (R.representative q n a) i)) (List.range (R.repLength a))).length = repLength a := by
     simp
   by_cases (i < R.repLength a)
-  case pos =>
+  case pos h =>
     rw [← hLength] at h; rw [List.getD_eq_get _ _ h, List.get_map, List.get_range]
     done
-  case neg =>
+  case neg h =>
     rw [Nat.not_lt] at h
     rw [List.getD_eq_default _, Polynomial.coeff_eq_zero_of_degree_lt]
     simp[ZMod.toInt]
@@ -133,11 +133,13 @@ induction tensor using List.reverseRecOn with
    | H1 xs x ih =>
      have ⟨n,hxs⟩ := ih
      by_cases (x = 0)
-     · exists (n + 1)
+     case pos h =>
+       exists (n + 1)
        rw [h]
        simp
        rw [← List.replicate_succ, List.replicate_succ', ← List.append_assoc, ← hxs]
-     · exists 0
+     case neg h =>
+       exists 0
        rw [R.trimTensor_append_not_zero _ _ h] ; simp
 
 theorem R.trimTensor_getD_0 (tensor: List Int) :
@@ -156,11 +158,11 @@ theorem R.trimTensor_getD_0 (tensor: List Int) :
 theorem R.trimTensor_trimTensor (tensor : List Int) :
   trimTensor (trimTensor tensor) = trimTensor tensor := by
   induction tensor using List.reverseRecOn with
-    | H0 => simp
+    | H0 => simp [trimTensor]
     | H1 xs x ih =>
        by_cases (x = 0)
-       · rw [h, R.trimTensor_append_zero_eq,ih]
-       · rw [trimTensor_append_not_zero _ _ h, trimTensor_append_not_zero _ _ h]
+       case pos h => rw [h, R.trimTensor_append_zero_eq,ih]
+       case neg h => rw [trimTensor_append_not_zero _ _ h, trimTensor_append_not_zero _ _ h]
 
 theorem R.fromTensor_eq_fromTensor_trimTensor (tensor : List Int) :
    R.fromTensor (q := q) (n := n) (trimTensor tensor) = R.fromTensor (q := q) (n := n) tensor := by
@@ -203,7 +205,7 @@ theorem toTensor_trimTensor_eq_toTensor [hqgt1 : Fact (q > 1)] (a : R q n) :
   trimTensor a.toTensor = a.toTensor := by
   unfold R.toTensor
   cases h : Polynomial.degree a.representative with
-  | none => simp [h, R.repLength]
+  | none => simp [trimTensor, h, R.repLength]
   | some n  =>
     simp [R.repLength, h]
     rw [List.range_succ, List.map_append]

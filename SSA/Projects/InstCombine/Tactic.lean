@@ -4,24 +4,17 @@ import SSA.Projects.InstCombine.Refinement
 import Mathlib.Tactic
 import SSA.Core.ErasedContext
 import SSA.Core.Tactic
+import Std.Data.BitVec
+import Mathlib.Data.BitVec.Lemmas
 
 open MLIR AST
 open Std (BitVec)
 open Ctxt
 
 theorem bitvec_minus_one : BitVec.ofInt w (Int.negSucc 0) = (-1 : BitVec w) := by
-  simp[BitVec.ofInt, BitVec.ofNat,Neg.neg,
-    BitVec.neg, BitVec.sub, BitVec.toFin, Fin.ofNat', HSub.hSub, Sub.sub, Fin.sub]
-  simp
-  cases w
-  case zero => norm_num
-  case succ w' =>
-    norm_num
-    have ONE : 1 % 2^ Nat.succ w' = 1 := by
-      apply Nat.mod_eq_of_lt
-      simp
-    rw[ONE]
-
+  change (BitVec.ofInt w (-1) = (-1 : BitVec w))
+  ext i
+  simp [BitVec.ofInt, Neg.neg, Int.neg, Int.negOfNat]
 
 open MLIR AST in
 /--
@@ -40,7 +33,7 @@ macro "simp_alive_peephole" : tactic =>
         simp_peephole at Γv
         /- note that we need the `HVector.toPair`, `HVector.toSingle`, `HVector.toTriple` lemmas since it's used in `InstCombine.Op.denote`
           We need `HVector.toTuple` since it's used in `MLIR.AST.mkOpExpr`. -/
-        simp (config := {decide := false}) only [OpDenote.denote,
+        simp (config := {unfoldPartialApp := true}) only [OpDenote.denote,
           InstCombine.Op.denote, HVector.toPair, HVector.toTriple, pairMapM, BitVec.Refinement,
           bind, Option.bind, pure, Ctxt.DerivedCtxt.ofCtxt, Ctxt.DerivedCtxt.snoc,
           Ctxt.snoc,
