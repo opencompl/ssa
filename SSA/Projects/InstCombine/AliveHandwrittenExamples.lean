@@ -226,7 +226,26 @@ This exists in std4 as of 3 days ago.
 We should rebase on mathlib4.
 -/
 lemma BitVec.getLsb'_ushr (x : BitVec w) (y : Nat) (i : Fin w) :
-  (x >>> y).getLsb' i = if (y > i) then false else (x.getLsb' ⟨i - y, by sorry ⟩) := by sorry -- std sorry
+  (x >>> y).getLsb' i = x.getLsb (i + y) := by
+  unfold HShiftRight.hShiftRight  BitVec.instHShiftRightBitVecNat  BitVec.ushiftRight Std.BitVec.getLsb'
+  simp
+  unfold BitVec.getLsb' BitVec.getLsb Nat.testBit
+  simp
+  unfold HShiftRight.hShiftRight instHShiftRight ShiftRight.shiftRight Nat.instShiftRightNat
+  simp [Nat.shiftRight_eq_div_pow]
+  have hx : BitVec.toNat x < 2^w :=  x.toFin.2
+  have hxdivLt : BitVec.toNat x / 2^y < 2^w := by
+    apply Nat.div_lt_of_lt_mul
+    have htwoy : 2^y > 0 := by apply Nat.pow_two_pos;
+    nlinarith
+  rw [Nat.mod_eq_of_lt hxdivLt]
+  rw [Nat.div_div_eq_div_mul]
+  rw [← Nat.pow_add, Nat.add_comm]
+
+
+
+
+
 
 
 @[simp]
@@ -1115,10 +1134,10 @@ def alive_simplifyAndOrXor2515 (w : Nat) :
     . simp only [ge_iff_le, LLVM.lshr?_eq_some lt, BitVec.ushiftRight_eq,
       BitVec.Refinement.some_some]
       ext i
-      simp only [BitVec.getLsb'_xor , BitVec.getLsb'_ushr]
-      split_ifs <;> try simp
+      simp [BitVec.getLsb'_xor, BitVec.getLsb'_ushr]
     . have hc2 : c2.toNat ≥ w := by linarith
       simp [LLVM.lshr?_eq_none hc2]
+
 /-
 Proof:
 ------
