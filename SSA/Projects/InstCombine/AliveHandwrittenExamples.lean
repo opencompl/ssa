@@ -962,8 +962,18 @@ lemma cases_bitvec_3 (val : BitVec 3) :
   obtain ⟨val, hval⟩ := val
   rcases val with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | hcontra <;> tauto
 
--- rule: try to keep everything in Nat.
--- theorem :
+lemma bitvec_width_4_plus_w_val_0 (w : Nat) :
+  BitVec.ofInt (.succ (.succ (.succ (.succ w)))) 0 =
+  BitVec.ofNat (.succ (.succ (.succ (.succ w)))) 0 := rfl
+
+lemma bitvec_width_4_plus_w_val_1 (w : Nat) :
+  BitVec.ofInt (.succ (.succ (.succ (.succ w)))) 1 =
+  BitVec.ofNat (.succ (.succ (.succ (.succ w)))) 1 := rfl
+
+lemma bitvec_width_4_plus_w_val_3 (w : Nat) :
+  BitVec.ofInt (.succ (.succ (.succ (.succ w)))) 3 =
+  BitVec.ofNat (.succ (.succ (.succ (.succ w)))) 3 := rfl
+
 def alive_simplifyMulDivRem805 (w : Nat) :
   MulDivRem805_lhs w ⊑ MulDivRem805_rhs w := by
   simp only [Com.Refinement]; intros Γv
@@ -992,6 +1002,9 @@ def alive_simplifyMulDivRem805 (w : Nat) :
         rcases hcases with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> decide
       . /- w ≥ 4 -/
         sorry
+
+
+
 /-
 Name: MulDivRem:290
 
@@ -1137,6 +1150,8 @@ def alive_simplifyAndOrXor2515 (w : Nat) :
       simp [BitVec.getLsb'_xor, BitVec.getLsb'_ushr]
     . have hc2 : c2.toNat ≥ w := by linarith
       simp [LLVM.lshr?_eq_none hc2]
+
+#print axioms alive_simplifyAndOrXor2515
 
 /-
 Proof:
