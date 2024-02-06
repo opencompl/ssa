@@ -974,6 +974,57 @@ lemma bitvec_width_4_plus_w_val_3 (w : Nat) :
   BitVec.ofInt (.succ (.succ (.succ (.succ w)))) 3 =
   BitVec.ofNat (.succ (.succ (.succ (.succ w)))) 3 := rfl
 
+section
+
+open Std.BitVec
+variable (x : BitVec w)
+
+@[simp] lemma BitVec.msb_one_of_width_one : BitVec.msb 1#1 = true := rfl
+
+@[simp]
+theorem BitVec.msb_one_of_width_succ_succ : BitVec.msb 1#(w + 2) = false := by
+  simp only [BitVec.msb, getMsb, add_pos_iff, zero_lt_two, or_true, decide_True, getLsb,
+    Nat.testBit, bne, toNat_ofNat, Nat.succ_sub_succ_eq_sub, tsub_zero, Nat.and_one_is_mod,
+    Bool.true_and, Bool.not_eq_false', Nat.beq_eq_true_eq]
+  rw [Nat.one_mod_of_ne_one, Nat.shiftRight_eq_div_pow, Nat.pow_succ,
+    mul_comm, ← Nat.div_div_eq_div_mul, show 1 / 2 = 0 from rfl, Nat.zero_div]
+  · rfl
+  · rw [Nat.pow_succ, mul_two]
+    exact Nat.add_self_ne_one _
+
+@[simp]
+theorem BitVec.msb_zero : BitVec.msb 0#w = false := by
+  simp [BitVec.msb, getMsb, getLsb]
+
+@[simp]
+theorem BitVec.udiv_zero : BitVec.udiv x 0#w = 0#w := by
+  sorry
+
+@[simp]
+theorem BitVec.sdiv_zero : BitVec.sdiv x 0#w = 0#w := by
+  simp only [BitVec.sdiv, msb_zero, udiv_zero, neg_eq, BitVec.neg_zero]
+  split <;> rfl
+
+@[simp]
+theorem BitVec.udiv_one : BitVec.udiv x 1#w = x := by
+  sorry
+
+@[simp]
+theorem BitVec.sdiv_one : BitVec.sdiv x 1#w = x := by
+  simp [BitVec.sdiv]
+  rcases w with rfl | rfl | w
+  · simp [show 1#0 = 0#0 from rfl]
+    cases x.msb <;> rfl
+  · simp [show -1#1 = 1#1 from rfl]
+    suffices -x = x by cases x.msb <;> exact this
+    obtain rfl | rfl : x = 0#1 ∨ x = 1#1 := sorry
+    <;> rfl
+  · simp;
+    cases x.msb <;> rfl
+
+end
+
+open Std (BitVec) in
 def alive_simplifyMulDivRem805 (w : Nat) :
   MulDivRem805_lhs w ⊑ MulDivRem805_rhs w := by
   simp only [Com.Refinement]; intros Γv
@@ -1001,7 +1052,28 @@ def alive_simplifyMulDivRem805 (w : Nat) :
         have hcases := cases_bitvec_3 val
         rcases hcases with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> decide
       . /- w ≥ 4 -/
-        sorry
+        simp
+        save
+        · skip
+          have hOne (w') : BitVec.ofInt (Nat.succ w') 1 = BitVec.ofNat _ 1 :=
+            rfl
+          have hIntMin_neq_one (w' : Nat) : BitVec.ofNat _ 1 ≠ LLVM.intMin w' :=
+            sorry
+          simp [LLVM.sdiv?, hOne, hIntMin_neq_one]
+          split
+          case inl =>
+            apply BitVec.Refinement.none_left
+          case inr h_val_neq_zero =>
+            split_ifs with h_lt
+            · obtain rfl | rfl | rfl : val = 0 ∨ val = 1 ∨ val = -1 :=
+                sorry
+              · simp only [BitVec.ofNat_eq_ofNat, BitVec.sdiv_zero, BitVec.Refinement.refl]
+              · simp -- should be straightforward
+              · simp -- should be straightforward
+            · simp
+          -- split_ifs
+          -- have hOneNeqIntMin : 1 ≠
+
 
 
 
