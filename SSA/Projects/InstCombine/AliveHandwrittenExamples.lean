@@ -546,8 +546,12 @@ def alive_simplifyMulDivRem805 (w : Nat) :
       rcases hval with rfl | rfl | rfl | hval | hval <;> try simp
       . /- -1 -/
         conv =>
-        rewrite [BitVec.ult_toNat (BitVec.ofNat (Nat.succ w) 0) (BitVec.ofNat (Nat.succ w) 3)]
-        sorry
+          rewrite [BitVec.ult_toNat (BitVec.ofNat (Nat.succ w) 0) (BitVec.ofNat (Nat.succ w) 3)]
+        simp
+        rcases w with rfl | w
+        . sorry
+        . sorry
+
       . /- 1 -/
         sorry
       . /- 2 -/
@@ -747,6 +751,7 @@ Name: Select:746
 -/
 
 open ComWrappers
+open BitVecTheory
 def Select746_lhs (w : ℕ):
   Com InstCombine.Op
     [/- A -/ InstCombine.Ty.bitvec w] (InstCombine.Ty.bitvec w) :=
@@ -818,6 +823,17 @@ theorem Std.BitVec.neg_toNat{n : Nat} (x : Std.BitVec n) : Std.BitVec.toNat (-x)
   obtain ⟨x, hx⟩ := x
   simp [BitVec.toNat, Neg.neg]
 
+theorem Std.BitVec.neg_toNat_nonzero {n : Nat} (x : Std.BitVec n) (hx : x ≠ 0) :  Std.BitVec.toNat (-x) = (2 ^ n - Std.BitVec.toNat x) := by
+  rw [Std.BitVec.neg_toNat]
+  apply Nat.mod_eq_of_lt
+  obtain ⟨x, hx'⟩ := x
+  simp
+  apply Nat.sub_lt
+  apply Nat.pow_two_pos
+  apply Nat.pos_of_ne_zero
+  cases x
+  . contradiction
+  . simp
 
 
 /-- the value of (x / 2^ (w - 1)) can be either 1 or 0 if (x < 2^w) -/
@@ -874,10 +890,285 @@ theorem BitVec.toInt_eq (w : Nat) (x : BitVec w): BitVec.toInt x = if x.toNat < 
         simp [hgt, hgt', bne, Nat.cast, NatCast.natCast, BEq.beq, Nat.beq]
       . exact x.toFin.2
 
--- use above theorem.
-theorem BitVec.toInt_neg (x : BitVec w) :
-    BitVec.toInt (- x) = - (BitVec.toInt x) := by sorry
+theorem BitVec.toInt_eq' (w : Nat) (x : BitVec w): BitVec.toInt x = if x.toNat < (2 : Nat)^(w - 1) then (x.toNat : ℤ) else (x.toNat : ℤ) - 2^w := by
+  cases w <;> simp
+  . have hx : BitVec.toNat x = (0 : ℕ) := by
+      obtain ⟨x, hx⟩ := x
+      simp at hx
+      subst hx
+      rfl
+    rw [hx]
+    rfl
+  . case succ w' =>
+      unfold BitVec.toInt BitVec.msb BitVec.getMsb BitVec.getLsb Nat.testBit
+      simp
+      rw [Nat.shiftRight_eq_div_pow]
+      have hdiv : (BitVec.toNat x) / 2 ^ w' = (BitVec.toNat x) / 2^(Nat.succ w' - 1) := by simp
+      rw [hdiv]
+      rw [Nat.div_two_pow_pred, Nat.succ_sub_one]
+      have hcases : (BitVec.toNat x < 2 ^ w') ∨ (BitVec.toNat x ≥ 2 ^ w') := by
+        apply lt_or_ge
+      cases hcases
+      case inl hle =>
+        simp [hle]
+        have hle' : ¬ (2 ^ w' ≤ BitVec.toNat x) := by linarith
+        simp [hle', bne, Nat.cast, NatCast.natCast]
+      case inr hgt =>
+        have hgt' : ¬ (BitVec.toNat x < 2 ^ w') := by linarith
+        simp at hgt
+        simp [hgt, hgt', bne, Nat.cast, NatCast.natCast, BEq.beq, Nat.beq]
+      . exact x.toFin.2
 
+
+/-- If a bitvec's toInt is negative, then the toNat will be larger than half of the bitwidth. -/
+lemma BitVec.large_of_toInt_lt_zero (w : Nat) (x : BitVec w) (hxToInt : BitVec.toInt x < 0) :
+    x.toNat ≥ (2 : Nat) ^ (w - 1) := by
+  rcases w with rfl | w'
+  case zero => simp at hxToInt
+  case succ =>
+    rw [BitVec.toInt_eq'] at hxToInt
+    split_ifs at hxToInt
+    case pos h => linarith
+    case neg h =>
+      omega
+
+lemma BitVec.toInt_lt_zero_of_large (w : Nat) (x : BitVec w) (hxLarge : x.toNat ≥ (2 : Nat) ^ (w - 1)) : BitVec.toInt x < 0
+    := by
+  rcases w with rfl | w'
+  case zero =>
+    simp [BitVec.toNat] at hxLarge
+  case succ =>
+    rw [BitVec.toInt_eq']
+    split_ifs
+    case pos h => omega
+    case neg h =>
+      norm_cast
+      have hxToNatVal : x.toNat < 2 ^ (Nat.succ w') :=
+        x.toFin.2
+      rw [Int.subNatNat_eq_coe]
+      omega
+
+lemma BitVec.toInt_lt_zero_iff_large (w : Nat) (x : BitVec w) : BitVec.toInt x < 0 ↔ x.toNat ≥ (2 : Nat) ^ (w - 1) := by
+  constructor
+  apply BitVec.large_of_toInt_lt_zero
+  apply BitVec.toInt_lt_zero_of_large
+
+/-- If a bitvec's toInt is negative, then the toNat will be larger than half of the bitwidth. -/
+lemma BitVec.small_of_toInt_pos (w : Nat) (x : BitVec w) (hxToInt : BitVec.toInt x ≥ 0) :
+    x.toNat < (2 : Nat) ^ (w - 1) := by
+  rcases w with rfl | w'
+  case zero => simp [BitVec.width_zero_eq_zero]
+  case succ =>
+    rw [BitVec.toInt_eq'] at hxToInt
+    split_ifs at hxToInt
+    case pos h => linarith
+    case neg h =>
+      exfalso
+      simp_all
+      have hcontra : BitVec.toNat x < 2 ^ (Nat.succ w') :=
+        x.toFin.2
+      norm_cast at hxToInt
+      linarith
+
+lemma BitVec.toInt_pos_of_small (w : Nat) (x : BitVec w) (hxsmall : x.toNat < (2 : Nat) ^ (w - 1)) : BitVec.toInt x ≥ 0 := by
+  rcases w with rfl | w'
+  case zero => simp
+  case succ =>
+    rw [BitVec.toInt_eq']
+    split_ifs
+    norm_cast
+    simp
+
+lemma BitVec.toInt_pos_iff_small (w : Nat) (x : BitVec w) : x.toNat < (2 : Nat) ^ (w - 1) ↔ BitVec.toInt x ≥ 0 := by
+  constructor
+  apply BitVec.toInt_pos_of_small
+  apply BitVec.small_of_toInt_pos
+
+lemma BitVec.toInt_pos_iff_small' (w : Nat) (x : BitVec (w + 1)) : x.toNat < (2 : Nat) ^ w ↔ BitVec.toInt x ≥ 0 := by
+  apply BitVec.toInt_pos_iff_small
+
+lemma BitVec.toInt_zero_iff (w : Nat) (x : BitVec w) : BitVec.toInt x = 0 ↔ x = 0 := by
+  constructor
+  case mpr =>
+    intros h
+    subst h
+    simp [BitVec.toInt, BitVec.msb, BitVec.getMsb, BitVec.getLsb]
+  case mp =>
+    cases w
+    case zero =>
+      simp
+      apply Subsingleton.elim
+    case succ w' =>
+      rw [BitVec.toInt_eq']
+      intros h
+      simp at h
+      split_ifs at h
+      case pos hpos =>
+        apply BitVec.eq_of_toNat_eq
+        simp
+        norm_cast at h
+      case neg hneg =>
+        exfalso
+        norm_cast at h
+        rw [Int.subNatNat_eq_coe] at h
+        simp at h
+        have h' : (↑(BitVec.toNat x) : ℤ) = ↑(2 ^ Nat.succ w') :=
+          Int.eq_of_sub_eq_zero h
+        norm_cast at h'
+        have hcontra : BitVec.toNat x < 2 ^ (Nat.succ w') :=
+          x.toFin.2
+        omega
+-- 0b100 (w=3)
+-- conjecture: BitVec.toInt (- x) = - (BitVec.toInt x) := false
+-- #reduce - BitVec.toInt (BitVec.ofNat 3 4) -- Int.ofNat 4
+-- #reduce BitVec.toInt (- BitVec.ofNat 3 4) -- Int.negSucc 3
+
+lemma BitVec.toInt_nonzero_iff (w : Nat) (x : BitVec w) : BitVec.toInt x ≠ 0 ↔ x ≠ 0 := by
+  constructor
+  case mp =>
+    contrapose
+    simp [BitVec.toInt_zero_iff]
+  case mpr =>
+    contrapose
+    simp [BitVec.toInt_zero_iff]
+
+
+@[simp]
+lemma BitVec.toInt_zero : BitVec.toInt (BitVec.ofNat w 0) = 0 := by
+  cases w
+  case zero => rfl
+  case succ w' =>
+    simp [BitVec.toInt, BitVec.msb, BitVec.getMsb, BitVec.getLsb]
+
+-- @[simp]
+lemma BitVec.eq_zero_of_neg_eq_zero (w : Nat) (x : BitVec w) (h : -x = 0) : x = 0 := by
+  obtain ⟨x, hx⟩ := x
+  simp_all
+  unfold Neg.neg BitVec.instNegBitVec BitVec.neg BitVec.sub at h
+  simp at h
+  exact h
+
+lemma BitVec.eq_zero_of_toNat_zero (w : Nat) (x : BitVec w) (h : BitVec.toNat x = 0) : x = 0 := by
+  apply BitVec.eq_of_toNat_eq
+  simp [h]
+
+theorem BitVec.toInt_neg_lt_zero_of_gt_zero (w : Nat) (x : BitVec w) (hx : x.toInt > 0) :
+    BitVec.toInt (-x) < 0 := by
+  have h : _ := (BitVec.toInt_pos_iff_small w x).mpr (by omega)
+  rw [BitVec.toInt_lt_zero_iff_large]
+  simp [BitVec.toNat_neg]
+  have hxToIntNonzero : BitVec.toInt x ≠ 0 := by
+    omega
+  rw [BitVec.toInt_nonzero_iff] at hxToIntNonzero
+  rw [Nat.sub_mod_of_lt]
+  . cases w
+    case zero => simp; simp [BitVec.width_zero_eq_zero]
+    case succ w' =>
+      simp
+      have hlt : BitVec.toNat x < 2 ^ (Nat.succ w') := by
+        exact x.toFin.2
+      simp [Nat.pow_succ, Nat.mul_two] at hlt ⊢
+      omega
+  . by_contra h
+    have hcontra : BitVec.toNat x = 0 := by omega
+    have hcontra' : x = 0 := by
+      apply BitVec.eq_zero_of_toNat_zero
+      exact hcontra
+    subst hcontra'
+    contradiction
+  . exact x.toFin.2
+
+
+
+/-- if self is >= 2 ^ (w - 1), then 2^w - self is less that 2^(w - 1)-/
+lemma two_pow_sub_of_self_leq_two_pow_pred_of_geq_two_pow_pred (hx : y ≥ 2 ^ (w - 1)) : 2 ^ w - y ≤ 2 ^ (w - 1) := by
+  cases w
+  case zero =>
+    simp_all
+  case succ w' =>
+    simp_all [Nat.pow_succ]
+    simp [Nat.pow_succ, Nat.mul_two] at hx ⊢
+    omega
+
+
+/-- if self is > 2 ^ (w - 1), then 2^w - self is less that 2^(w - 1)-/
+lemma two_pow_sub_of_self_lt_two_pow_pred_of_gt_two_pow_pred (hx : y > 2 ^ (w - 1)) : 2 ^ w - y < 2 ^ (w - 1) := by
+  cases w
+  case zero =>
+    simp_all
+    linarith
+  case succ w' =>
+    simp_all [Nat.pow_succ]
+    simp [Nat.pow_succ, Nat.mul_two] at hx ⊢
+    have hlt : 2 ^ w' > 0 := by
+      apply Nat.pow_two_pos
+    omega
+
+/-
+have : BitVec.toInt A < 0
+want : BitVec.toInt (- A) > 0
+-/
+#reduce (BitVec.ofNat 3 4).toInt  -- -4
+#reduce (- (BitVec.ofNat 3 4)).toInt  -- -4
+
+/-- If we know that 'x.toInt < 0', then the are two cases:
+- Either the number is -2^(w-1), and it's negation is also the number itself.
+- Or the numbe ris any other number, and its negation is positive. -/
+theorem BitVec.toInt_neg_gt_zero_of_lt_zero (w : Nat) (x : BitVec w) (hx : x.toInt < 0) :
+    -- (BitVec.toInt (-x) > 0 ∧ x ≠ (BitVec.ofNat w ((2 : ℕ) ^ (w - 1)))) ∨
+    (BitVec.toInt (-x) > 0) ∨
+    (BitVec.toInt (- x) = BitVec.toInt x /\ x = (BitVec.ofNat w ((2 : ℕ) ^ (w - 1)))) := by
+  have h : _ := (BitVec.toInt_lt_zero_iff_large w x).mp (by omega)
+  have hxvals : BitVec.toNat x = 2 ^ (w - 1) ∨ BitVec.toNat x > 2 ^ (w - 1) := by
+    omega
+  cases hxvals
+  case inl heq =>
+    cases w
+    case zero =>
+      simp_all
+    case succ w =>
+      repeat rw [BitVec.toInt_eq']
+      rw [BitVec.toNat_neg]
+      simp [heq]
+      have hpot : 2 ^ w > 0 := by apply Nat.pow_two_pos
+      have hpotpred : 2 ^ (w - 1) > 0 := by apply Nat.pow_two_pos
+      have hcomputation : (2 ^ (Nat.succ w) - 2 ^ (w))= 2 ^ (w) := by
+        simp_all [Nat.pow_succ]
+        omega
+      rw [hcomputation]
+      rw [Nat.mod_eq_of_lt]
+      simp
+      right
+      constructor
+      . norm_cast
+        apply Nat.mod_eq_of_lt
+        omega
+      . simp at heq
+        apply BitVec.eq_of_toNat_eq
+        simp [heq]
+        symm
+        apply Nat.mod_eq_of_lt
+        omega
+      . omega
+  case inr hgt =>
+    by_contra h'
+    simp (config := {unfoldPartialApp := true}) at h'
+    rw [BitVec.toInt_eq'] at h'
+    simp [BitVec.toNat_neg] at h'
+    rw [Nat.mod_eq_of_lt] at h'
+    simp [two_pow_sub_of_self_lt_two_pow_pred_of_gt_two_pow_pred hgt] at h'
+    norm_cast at h'
+    rw [Nat.sub_mod_of_lt] at h'
+    have h'' : BitVec.toNat x ≥ 2^w := by omega
+    have hcontra : BitVec.toNat x < 2^w := by
+      exact x.toFin.2
+    omega
+    . omega
+    . exact x.toFin.2
+    . apply Nat.sub_lt_self
+      omega
+      have hxmax := x.toFin.2
+      omega
 
 
 
@@ -890,7 +1181,8 @@ def alive_simplifySelect764 (w : Nat) :
   intros A
   simp only [InstCombine.Op.denote, pairBind, HVector.toPair, HVector.toTuple, Function.comp_apply, HVector.toTriple, bind_assoc]
   rcases A with none | A  <;> simp [Option.bind, Bind.bind]
-  split_ifs <;> try simp
+  split_ifs <;> try simp only [LLVM.select?_eq_some, BitVec.ofNat_eq_ofNat, BitVec.ofBool_eq_1,
+    eq_iff_iff, iff_true]
   case neg h =>
     split_ifs <;> simp
     case pos contra => contradiction
@@ -906,14 +1198,20 @@ def alive_simplifySelect764 (w : Nat) :
         exact h0
       simp [h0']
   case pos ha hb =>
-    split_ifs <;> simp
+    split_ifs
     case pos hc =>
-      simp [BitVec.slt] at hc ha hb
-      simp [BitVec.toInt_neg] at hc
+      simp only [BitVec.slt, BitVec.toInt_ofInt_zero, decide_eq_true_eq, not_lt] at hc ha hb
+      have h' : BitVec.toInt (- (-A)) < 0 := by
+        apply BitVec.toInt_neg_lt_zero_of_gt_zero
+        omega
+      simp at h'
       exfalso
-      linarith
+      omega
+    case neg hc =>
+      simp only [BitVec.slt, BitVec.toInt_ofInt_zero, decide_eq_true_eq, not_lt] at hc ha hb
+      simp
 
-
+#print axioms alive_simplifySelect764
 
 /-
 Proof:
@@ -1008,9 +1306,32 @@ theorem alive_simplifySelect747 (w : Nat) :
     split_ifs <;> simp
     case pos hc =>
       simp [BitVec.slt] at hc ha hb
-      simp [BitVec.toInt_neg] at hc
-      exfalso
-      linarith
+      have hcases := BitVec.toInt_neg_gt_zero_of_lt_zero w A hb
+      cases hcases
+      case inl hlt => exfalso; omega
+      case inr heq =>
+        obtain ⟨heq1, heq2⟩ := heq
+        cases w
+        case zero => apply Subsingleton.elim
+        case succ w =>
+          simp_all
+          apply BitVec.toNat_inj.mp
+          rw [BitVec.toNat_neg]
+          simp [BitVec.toNat_eq]
+          repeat rw [Nat.mod_eq_of_lt]
+          rw [Nat.pow_succ, Nat.mul_two]
+          have hpot : 2^w > 0 :=  by simp [Nat.pow_two_pos]
+          omega
+          apply Nat.pow_lt_pow_succ
+          decide
+          rw [Nat.mod_eq_of_lt]
+          rw [Nat.pow_succ, Nat.mul_two]
+          have hpot : 2^w > 0 :=  by simp [Nat.pow_two_pos]
+          omega
+          apply Nat.pow_lt_pow_succ
+          decide
+
+#print axioms alive_simplifySelect747
 
 end Select
 
