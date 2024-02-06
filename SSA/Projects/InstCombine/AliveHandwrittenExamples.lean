@@ -915,10 +915,6 @@ def MulDivRem805_rhs (w : ℕ) : Com InstCombine.Op [/- %X -/ InstCombine.Ty.bit
   /- r = -/ Com.lete (select w ⟨/-%c-/1, by simp [Ctxt.snoc]⟩ ⟨/-X-/5, by simp [Ctxt.snoc]⟩ ⟨/-c0-/0, by simp [Ctxt.snoc]⟩) <|
   Com.ret ⟨/-r-/0, by simp [Ctxt.snoc]⟩
 
-private lemma BitVec.ofInt_1_1 : BitVec.ofInt 1 1 = BitVec.ofNat 1 1 := rfl
-private lemma BitVec.ofInt_1_3 : BitVec.ofInt 1 3 = BitVec.ofNat 1 1 := rfl
-private lemma BitVec.ofInt_1_0 : BitVec.ofInt 1 0 = BitVec.ofNat 1 0 := rfl
-
 lemma cases_bitvec_1 (val : BitVec 1) : val = BitVec.ofNat 1 0 ∨ val = BitVec.ofNat 1 1 := by
   obtain ⟨val, hval⟩ := val
   simp at hval
@@ -927,20 +923,25 @@ lemma cases_bitvec_1 (val : BitVec 1) : val = BitVec.ofNat 1 0 ∨ val = BitVec.
   . tauto
   . omega
 
+lemma cases_bitvec_2 (val : BitVec 2) :
+  val = BitVec.ofNat 2 0 ∨
+  val = BitVec.ofNat 2 1 ∨
+  val = BitVec.ofNat 2 2 ∨
+  val = BitVec.ofNat 2 3 := by
+  obtain ⟨val, hval⟩ := val
+  rcases val with rfl | rfl | rfl | rfl | hcontra <;> tauto
 
-
-lemma width_one_one_gt_one_plus_val (val : BitVec 1) :
-  ((BitVec.ofNat 1 1) >ᵤ (BitVec.ofNat 1 1) + val) = (val = BitVec.ofNat 1 1) := by
-  have hcases := cases_bitvec_1 val
-  rcases hcases with rfl | rfl
-  . decide
-  . decide
-
-lemma LLVM.sdiv?_width_one_some (x y : BitVec 1) (hx : y ≠ BitVec.ofNat 1 0) :
-    LLVM.sdiv? x y = BitVec.sdiv x y := by
-  simp [LLVM.sdiv?, hx]
-  intros hcontra
-  tauto
+lemma cases_bitvec_3 (val : BitVec 3) :
+  val = BitVec.ofNat 3 0 ∨
+  val = BitVec.ofNat 3 1 ∨
+  val = BitVec.ofNat 3 2 ∨
+  val = BitVec.ofNat 3 3 ∨
+  val = BitVec.ofNat 3 4 ∨
+  val = BitVec.ofNat 3 5 ∨
+  val = BitVec.ofNat 3 6 ∨
+  val = BitVec.ofNat 3 7 := by
+  obtain ⟨val, hval⟩ := val
+  rcases val with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | hcontra <;> tauto
 
 -- rule: try to keep everything in Nat.
 -- theorem :
@@ -962,17 +963,14 @@ def alive_simplifyMulDivRem805 (w : Nat) :
       rcases w with rfl | rfl | rfl | rfl | w <;> try simp only [Nat.zero_eq, BitVec.ofNat_eq_ofNat,
         eq_iff_true_of_subsingleton, LLVM.sdiv?_denom_zero, BitVec.Refinement.none_left]
       . /- w = 1 -/
-        simp [BitVec.ofInt_1_1, BitVec.ofInt_1_3, BitVec.ofInt_1_0]
-        simp [width_one_one_gt_one_plus_val val]
         have hcases := cases_bitvec_1 val
-        rcases hcases with rfl | rfl <;> simp_all
-        rw [LLVM.sdiv?_width_one_some]
-        . decide
-        . decide
+        rcases hcases with rfl | rfl <;> decide
       . /- w = 2 | can represent [-2, 1]-/
-        sorry
+        have hcases := cases_bitvec_2 val
+        rcases hcases with rfl | rfl | rfl | rfl <;> decide
       . /- w = 3 | can represent [-4, 3]-/
-        sorry
+        have hcases := cases_bitvec_3 val
+        rcases hcases with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> decide
       . /- w ≥ 4 -/
         sorry
 /-
