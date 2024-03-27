@@ -1,6 +1,27 @@
+import Std.Data.BitVec
+import Std.Data.Option.Lemmas
 
 namespace BitVec
 
+namespace Option
+
+@[simp]
+theorem none_bind'' (f : α → Option β) :
+    none >>= f = none :=
+  Option.none_bind f
+
+@[simp]
+theorem some_bind'' (a : α) (f : α → Option β) :
+    some a >>= f = f a :=
+  pure_bind a f
+
+end Option
+
+namespace Std.BitVec
+
+def ofBool : (Bool) -> Std.BitVec 1
+ | true   => 1
+ | false  => 0
 
 notation:50 x " ≤ᵤ " y => BitVec.ule x y
 notation:50 x " <ᵤ " y => BitVec.ult x y
@@ -23,19 +44,21 @@ inductive Refinement {α : Type u} : Option α → Option α → Prop
   | bothSome {x y : α } : x = y → Refinement (some x) (some y)
   | noneAny {x? : Option α} : Refinement none x?
 
-namespace Refinement
-
 infix:50 (priority:=low) " ⊑ " => Refinement
+
+namespace Refinement
 
 @[simp]
 theorem some_some {α : Type u} {x y : α} :
-  (some x) ⊑ (some y) ↔ x = y :=
+    (some x) ⊑ (some y) ↔ x = y :=
   ⟨by intro h; cases h; assumption, Refinement.bothSome⟩
 
 @[simp]
-theorem none_left :
-  Refinement none x? := .noneAny
+theorem none_left {x? : Option α} :
+    none ⊑ x? :=
+  .noneAny
 
+@[simp]
 theorem none_right {x? : Option α} :
     x? ⊑ none ↔ x? = none := by
   cases x?
@@ -43,9 +66,15 @@ theorem none_right {x? : Option α} :
   · simp only [iff_false]
     rintro ⟨⟩
 
+@[simp]
 theorem some_left {x : α} {y? : Option α} :
     some x ⊑ y? ↔ y? = some x := by
-  cases y? <;> simp [eq_comm, none_right]
+  cases y? <;> simp [eq_comm]
+
+-- @[simp]
+-- theorem pure_right {x? : Option α} {y : α} :
+--     x? ⊑ pure y ↔ x? = some y := by
+--   cases x? <;> simp [pure]
 
 @[simp]
 theorem refl {α: Type u} : ∀ x : Option α, Refinement x x := by
@@ -71,9 +100,11 @@ instance {α : Type u} [DEQ : DecidableEq α] : DecidableRel (@Refinement α) :=
     { apply isTrue; apply Refinement.bothSome; assumption }
   }
 
+
+
 end Refinement
 
-instance : Coe Bool (BitVec 1) := ⟨BitVec.ofBool⟩
+instance : Coe Bool (BitVec 1) := ⟨.ofBool⟩
 
 def coeWidth {m n : Nat} : BitVec m → BitVec n
   | x => BitVec.ofNat n x.toNat

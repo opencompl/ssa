@@ -26,19 +26,16 @@ macro "simp_alive_peephole" : tactic =>
       (
         dsimp only [Com.Refinement]
         intros Γv
-        simp_peephole at Γv
-        /- note that we need the `HVector.toPair`, `HVector.toSingle`, `HVector.toTriple` lemmas since it's used in `InstCombine.Op.denote`
-          We need `HVector.toTuple` since it's used in `MLIR.AST.mkOpExpr`. -/
-        simp (config := {failIfUnchanged := false, unfoldPartialApp := true, zetaDelta := true}) only [
-          InstCombine.Op.denote, HVector.toPair,
-          BitVec.Refinement, bind, Option.bind, pure,
-          HVector.toSingle,
+        -- Reduce away the framework to the monadic statement to be proven
+        simp_peephole [InstCombine.Op.denote] at Γv
+
+        -- Then, try to simplify away the LLVM wrappers into a pure "math" statement
+        simp (config := {decide := false}) only [BitVec.Refinement, bind, Option.bind, pure,
           LLVM.and?, LLVM.or?, LLVM.xor?, LLVM.add?, LLVM.sub?,
           LLVM.mul?, LLVM.udiv?, LLVM.sdiv?, LLVM.urem?, LLVM.srem?,
           LLVM.sshr, LLVM.lshr?, LLVM.ashr?, LLVM.shl?, LLVM.select?,
           LLVM.const?, LLVM.icmp?,
-          HVector.toTuple, List.nthLe, BitVec.bitvec_minus_one
-          ]
+          List.nthLe, bitvec_minus_one]
         try intros v0
         try intros v1
         try intros v2

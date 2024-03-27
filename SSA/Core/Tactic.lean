@@ -57,12 +57,14 @@ macro "simp_peephole" "[" ts: Lean.Parser.Tactic.simpLemma,* "]" "at" ll:ident :
   `(tactic|
       (
       change_mlir_context $ll
-      simp (config := {failIfUnchanged := false, decide := false, unfoldPartialApp := true, zetaDelta := true}) only [
-        Int.ofNat_eq_coe, Nat.cast_zero, DerivedCtxt.snoc, DerivedCtxt.ofCtxt,
-        DerivedCtxt.ofCtxt_empty, Valuation.snoc_last,
+      revert $ll
+      simp (config := {decide := false}) only [
+        Int.ofNat_eq_coe, Nat.cast_zero, Nat.cast_one,
+        DerivedCtxt.snoc, DerivedCtxt.ofCtxt, DerivedCtxt.ofCtxt_empty, Valuation.snoc_last,
         Com.denote, Expr.denote, HVector.denote, Var.zero_eq_last, Var.succ_eq_toSnoc,
-        Ctxt.empty, Ctxt.empty_eq, Ctxt.snoc, Ctxt.Valuation.nil, Ctxt.Valuation.snoc_last,
-        Ctxt.Valuation.snoc_eval, Ctxt.ofList, Ctxt.Valuation.snoc_toSnoc,
+        Ctxt.empty, Ctxt.empty_eq, Ctxt.snoc,
+        Ctxt.Valuation.nil, Ctxt.Valuation.snoc_last, Ctxt.Valuation.snoc_eval, Ctxt.ofList,
+        Ctxt.Valuation.snoc_toSnoc,
         HVector.map, HVector.toPair, HVector.toTuple, OpDenote.denote, Expr.op_mk, Expr.args_mk,
         DialectMorphism.mapOp, DialectMorphism.mapTy, List.map, Ctxt.snoc, List.map,
         Function.comp, Valuation.ofPair, Valuation.ofHVector, Function.uncurry,
@@ -71,27 +73,11 @@ macro "simp_peephole" "[" ts: Lean.Parser.Tactic.simpLemma,* "]" "at" ll:ident :
         bind_assoc, pairBind,
         $ts,*]
 
-      try simp (config := {failIfUnchanged := false, decide := false}) only [Ctxt.Var.toSnoc, Ctxt.Var.last]
-      try generalize $ll { val := 0, property := _ } = a;
-      try generalize $ll { val := 1, property := _ } = b;
-      try generalize $ll { val := 2, property := _ } = c;
-      try generalize $ll { val := 3, property := _ } = d;
-      try generalize $ll { val := 4, property := _ } = e;
-      try generalize $ll { val := 5, property := _ } = f;
-      try simp (config := {failIfUnchanged := false, decide := false, zetaDelta := true}) [TyDenote.toType] at a b c d e f;
-      try clear f;
-      try clear e;
-      try clear d;
-      try clear c;
-      try clear b;
-      try clear a;
-      try revert f;
-      try revert e;
-      try revert d;
-      try revert c;
-      try revert b;
-      try revert a;
-      try clear $ll;
+      -- HACK: For some reason `Ctxt.Valuation.snoc_last` is not applying when it ought to,
+      -- so we just reduce it manually
+      repeat (conv =>
+            pattern ((Ctxt.Valuation.snoc _ _) _)
+            whnf)
       )
    )
 
