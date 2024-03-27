@@ -51,7 +51,7 @@ theorem rep_zero [Fact (q > 1)]: R.representative q n 0 = 0 := by
 
 
 open Polynomial in
-theorem monomial_mul_mul (x y : Nat) : (R.monomial 1 y) * (R.monomial 1 x) = R.monomial 1 (x + y) (q := q) (n := n) := by
+theorem monomial_mul_mul (x y : Nat) : (R.monomial q n 1 y) * (R.monomial q n 1 x) = R.monomial q n 1 (x + y)  := by
   unfold R.monomial
   rw [← map_mul, monomial_mul_monomial, Nat.add_comm]
   simp

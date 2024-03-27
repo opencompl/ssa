@@ -99,6 +99,8 @@ theorem f_monic : Monic (f q n) := by
   apply Polynomial.monic_X_pow_add
   simp
 
+notation "(" v ")_" I => Ideal.span I v
+notation r "∔" I => (Ideal.Quotient.mk I) r
 /--
 The basic ring of interest in this dialect is `R q n` which corresponds to
 the ring `ℤ/qℤ[X]/(X^(2^n) + 1)`.
@@ -399,7 +401,7 @@ noncomputable def R.coeff {q n} (a : R q n) (i : Nat) : ZMod q :=
 /--
 `R.monomial i c` is the equivalence class of the monomial `c * X^i` in `R q n`.
 -/
-noncomputable def R.monomial {q n : Nat} (c : ZMod q) (i : Nat): R q n :=
+noncomputable def R.monomial (q n : Nat) (c : ZMod q) (i : Nat): R q n :=
   R.fromPoly (Polynomial.monomial i c)
 
 /--
@@ -413,22 +415,22 @@ noncomputable def R.slice {q n : Nat} (a : R q n) (startIdx endIdx : Nat) : R q 
   let coeffIdxs := List.range (endIdx - startIdx)
   let coeffs := coeffIdxs.map (fun i => a.coeff (startIdx + i))
   let accum : R q n → (ZMod q × Nat) → R q n :=
-    fun poly (c,i) => poly + R.monomial (n:=n) c i
+    fun poly (c,i) => poly + R.monomial q n  c i
   coeffs.zip coeffIdxs |>.foldl accum (0 : R q n)
 
 noncomputable def R.leadingTerm {q n} (a : R q n) : R q n :=
   let deg? := Polynomial.degree a.representative
   match deg? with
     | .none => 0
-    | .some deg =>  R.monomial (a.coeff deg) deg
+    | .some deg =>  R.monomial q n (a.coeff deg) deg
 
 noncomputable def R.fromTensor {q n} (coeffs : List Int) : R q n :=
   coeffs.enum.foldl (init := 0) fun res (i,c) =>
-    res + R.monomial ↑c i
+    res + R.monomial q n ↑c i
 
 /- `fromTensor (cs ++ [c])` equals `(fromTensor xs) + c X^n` -/
 theorem R.fromTensor_snoc (q n : ℕ) (c : ℤ) (cs : List ℤ) : R.fromTensor (q := q) (n := n) (cs ++ [c])
-  = (R.fromTensor (q := q) (n := n) cs) + R.monomial c cs.length := by
+  = (R.fromTensor (q := q) (n := n) cs) + R.monomial q n c cs.length := by
     induction cs using List.reverseRecOn generalizing c
     case nil =>
       simp[fromTensor]
@@ -448,7 +450,7 @@ noncomputable def R.fromTensor' (coeffs : List Int) : (ZMod q)[X] :=
 theorem R.fromTensor_eq_fromTensor'_fromPoly_aux (coeffs : List Int) (rp : R q n) (p : (ZMod q)[X])
   (H : R.fromPoly (q := q) (n := n) p = rp) :
   ((List.enumFrom k coeffs).foldl (init := rp) fun res (i,c) =>
-    res + R.monomial ↑c i) =
+    res + R.monomial q n ↑c i) =
   R.fromPoly (q := q) (n := n)
     ((List.enumFrom k coeffs).foldl (init := p) fun res (i,c) =>
       res + (Polynomial.monomial i ↑c)) := by
@@ -457,7 +459,7 @@ theorem R.fromTensor_eq_fromTensor'_fromPoly_aux (coeffs : List Int) (rp : R q n
         simp[List.enum, H]
       case cons head tail tail_ih =>
         simp[List.enum_cons]
-        specialize tail_ih (k := k + 1) (rp := (rp + monomial (↑head) k)) (p := (p + ↑(Polynomial.monomial k ↑head)))
+        specialize tail_ih (k := k + 1) (rp := (rp + monomial q n (↑head) k)) (p := (p + ↑(Polynomial.monomial k ↑head)))
         apply tail_ih
         simp[monomial, H]
 
@@ -640,7 +642,7 @@ inductive Ty (q : Nat) (n : Nat) [Fact (q > 1)]
   | integer : Ty q n
   | tensor : Ty q n
   | polynomialLike : Ty q n
-  deriving DecidableEq
+  deriving DecidableEq, Repr
 
 instance : Inhabited (Ty q n) := ⟨Ty.index⟩
 instance : TyDenote (Ty q n) where
@@ -667,6 +669,9 @@ inductive Op (q : Nat) (n : Nat) [Fact (q > 1)]
   | from_tensor : Op q n-- interpret values as coefficients of a representative
   | to_tensor : Op q n-- give back coefficients from `R.representative`
   | const (c : R q n) : Op q n
+  | const_int (c : Int) : Op q n
+  | const_idx (i : Nat) : Op q n
+
 
 open TyDenote (toType)
 
@@ -683,12 +688,16 @@ def Op.sig : Op  q n → List (Ty q n)
 | Op.from_tensor => [Ty.tensor]
 | Op.to_tensor => [Ty.polynomialLike]
 | Op.const _ => []
+| Op.const_int _ => []
+| Op.const_idx _ => []
 
 @[simp, reducible]
 def Op.outTy : Op q n → Ty q n
 | Op.add | Op.sub | Op.mul | Op.mul_constant | Op.leading_term | Op.monomial
 | Op.monomial_mul | Op.from_tensor | Op.const _  => Ty.polynomialLike
 | Op.to_tensor => Ty.tensor
+| Op.const_int _ => Ty.integer
+| Op.const_idx _ => Ty.index
 
 @[simp, reducible]
 def Op.signature : Op q n → Signature (Ty q n) :=
@@ -696,18 +705,17 @@ def Op.signature : Op q n → Signature (Ty q n) :=
 
 instance : OpSignature (Op q n) (Ty q n) := ⟨Op.signature q n⟩
 
-@[simp]
-noncomputable def Op.denote (o : Op q n)
-   (arg : HVector toType (OpSignature.sig o))
-   : (toType <| OpSignature.outTy o) :=
-    match o with
-    | Op.add => (fun args : R q n × R q n => args.1 + args.2) arg.toPair
-    | Op.sub => (fun args : R q n × R q n => args.1 - args.2) arg.toPair
-    | Op.mul => (fun args : R q n × R q n => args.1 * args.2) arg.toPair
-    | Op.mul_constant => (fun args : R q n × Int => args.1 * ↑(args.2)) arg.toPair
-    | Op.leading_term => R.leadingTerm arg.toSingle
-    | Op.monomial => (fun args => R.monomial ↑(args.1) args.2) arg.toPair
-    | Op.monomial_mul => (fun args : R q n × Nat => args.1 * R.monomial 1 args.2) arg.toPair
-    | Op.from_tensor => R.fromTensor arg.toSingle
-    | Op.to_tensor => R.toTensor' arg.toSingle
-    | Op.const c => c
+noncomputable instance  FHEOpDenote : OpDenote (Op q n) (Ty q n) where
+ denote
+    | Op.add, arg, _ => (fun args : R q n × R q n => args.1 + args.2) arg.toPair
+    | Op.sub, arg, _ => (fun args : R q n × R q n => args.1 - args.2) arg.toPair
+    | Op.mul, arg, _ => (fun args : R q n × R q n => args.1 * args.2) arg.toPair
+    | Op.mul_constant, arg, _ => (fun args : R q n × Int => args.1 * ↑(args.2)) arg.toPair
+    | Op.leading_term, arg, _ => R.leadingTerm arg.toSingle
+    | Op.monomial, arg, _ => (fun args => R.monomial q n (args.1 : ZMod q) args.2) arg.toPair
+    | Op.monomial_mul, arg, _ => (fun args : R q n × Nat => args.1 * R.monomial q n 1 args.2) arg.toPair
+    | Op.from_tensor, arg, _ => R.fromTensor arg.toSingle
+    | Op.to_tensor, arg, _ => R.toTensor' arg.toSingle
+    | Op.const c, _, _ => c
+    | Op.const_int c, _, _ => c
+    | Op.const_idx c, _, _ => c

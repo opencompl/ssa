@@ -181,6 +181,9 @@ instance : Coe String (AttrValue φ) where
 instance : Coe Int (AttrValue φ) where
   coe (i: Int) := AttrValue.int i (MLIRType.int .Signless 64)
 
+instance : Coe Nat (AttrValue φ) where
+  coe (n: Nat) := AttrValue.nat n
+
 instance : Coe (MLIRType φ) (AttrValue φ) where
   coe := AttrValue.type
 
@@ -345,6 +348,11 @@ def AttrDict.find_str {φ} (attrs : AttrDict φ) (name : String) : Option String
 def AttrDict.find_int' {φ} (attrs : AttrDict φ) (name : String): Option Int :=
   match attrs.find name with
   | .some (AttrValue.int i _) =>  .some i
+  | _ => .none
+
+def AttrDict.find_symbol {φ} (attrs : AttrDict φ) (name : String) : Option String :=
+  match attrs.find name with
+  | .some (AttrValue.symbol s) =>  .some s
   | _ => .none
 
 @[simp] theorem AttrDict.find_none :
