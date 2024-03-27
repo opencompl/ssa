@@ -178,7 +178,17 @@ theorem Expr.regArgs_mk {Γ : Ctxt Ty} {ty : Ty} (op : Op) (ty_eq : ty = OpSigna
 -- that might not strictly need them, we can look into making this more fine-grained
 variable [TyDenote Ty] [OpDenote Op Ty] [DecidableEq Ty]
 
-mutual
+/--
+A match pattern to ignore the `ty_eq` field of an Expr.
+This fails currently due to a Lean bug:
+https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/Default.20argument.20in.20match.20pattern/near/402478882
+-/
+@[match_pattern]
+def Expr.match [OpSignature Op Ty] {t : Ty} (op : Op)
+   (args : HVector (Var Γ) <| OpSignature.sig op)
+   (regArgs : HVector (fun t : Ctxt Ty × Ty => Com Op t.1 t.2) <| (OpSignature.regSig op))
+   (ht : (t = OpSignature.outTy op) := by try simp; try rfl) : Expr Op Γ t :=
+  Expr.mk op ht args regArgs
 
 def HVector.denote : {l : List (Ctxt Ty × Ty)} → (T : HVector (fun t => Com Op t.1 t.2) l) →
     HVector (fun t => t.1.Valuation → toType t.2) l
@@ -186,7 +196,7 @@ def HVector.denote : {l : List (Ctxt Ty × Ty)} → (T : HVector (fun t => Com O
   | _, .cons v vs => HVector.cons (v.denote) (HVector.denote vs)
 
 def Expr.denote : {ty : Ty} → (e : Expr Op Γ ty) → (Γv : Valuation Γ) → (toType ty)
-  | _, ⟨op, Eq.refl _, args, regArgs⟩, Γv =>
+  | _, (Expr.match op args regArgs_), Γv =>
     OpDenote.denote op (args.map (fun _ v => Γv v)) regArgs.denote
 
 def Com.denote : Com Op Γ ty → (Γv : Valuation Γ) → (toType ty)
