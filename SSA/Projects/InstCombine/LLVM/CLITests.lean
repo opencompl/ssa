@@ -32,7 +32,8 @@ structure CliTest where
   mvars : Nat
   context : MContext mvars
   ty : MTy mvars
-  code : MCom mvars context ty
+  eff : EffectKind
+  code : MCom mvars context eff ty
 
 def CliTest.signature (test : CliTest) :
   List (InstCombine.MTy test.mvars) × (InstCombine.MTy test.mvars) :=
@@ -98,7 +99,8 @@ structure ConcreteCliTest where
   name : Name
   context : Context
   ty : Ty
-  code : MCom 0 context ty
+  -- TODO: add support for impure CLI tests
+  code : MCom 0 context .pure ty
 
 def InstCombine.MTy.cast_concrete (mvars : Nat) (ty : InstCombine.MTy mvars) (hMvars : mvars = 0) : InstCombine.MTy 0 :=
     hMvars ▸ ty

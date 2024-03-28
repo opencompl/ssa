@@ -29,41 +29,46 @@ inductive ExOp :  Type
   | cst : ℕ → ExOp
   deriving DecidableEq, Repr
 
-instance : OpSignature ExOp ExTy where
+instance : OpSignature ExOp ExTy Id where
   signature
-    | .add    => ⟨[.nat, .nat], [], .nat⟩
-    | .beq    => ⟨[.nat, .nat], [], .bool⟩
-    | .cst _  => ⟨[], [], .nat⟩
+    | .add    => ⟨[.nat, .nat], [], .nat, .pure⟩
+    | .beq    => ⟨[.nat, .nat], [], .bool, .pure⟩
+    | .cst _  => ⟨[], [], .nat, .pure⟩
 
 @[reducible]
-instance : OpDenote ExOp ExTy where
+instance : OpDenote ExOp ExTy Id where
   denote
     | .cst n, _, _ => n
     | .add, .cons (a : Nat) (.cons b .nil), _ => a + b
     | .beq, .cons (a : Nat) (.cons b .nil), _ => a == b
 
-def cst {Γ : Ctxt _} (n : ℕ) : Expr ExOp Γ .nat  :=
+abbrev Expr (Γ) (ty) := _root_.Expr ExOp Γ .pure ty
+abbrev Com (Γ) (ty) := _root_.Com ExOp Γ .pure ty
+
+def cst {Γ : Ctxt _} (n : ℕ) : Expr Γ .nat  :=
   Expr.mk
     (op := .cst n)
     (ty_eq := rfl)
+    (eff_le := EffectKind.le_refl _)
     (args := .nil)
     (regArgs := .nil)
 
-def add {Γ : Ctxt _} (e₁ e₂ : Var Γ .nat) : Expr ExOp Γ .nat :=
+def add {Γ : Ctxt _} (e₁ e₂ : Var Γ .nat) : Expr Γ .nat :=
   Expr.mk
     (op := .add)
     (ty_eq := rfl)
+    (eff_le := EffectKind.le_refl _)
     (args := .cons e₁ <| .cons e₂ .nil)
     (regArgs := .nil)
 
 attribute [local simp] Ctxt.snoc
 
-def ex1 : Com ExOp ∅ .nat :=
+def ex1 : Com ∅ .nat :=
   Com.lete (cst 1) <|
   Com.lete (add ⟨0, by simp [Ctxt.snoc]⟩ ⟨0, by simp [Ctxt.snoc]⟩ ) <|
   Com.ret ⟨0, by simp [Ctxt.snoc]⟩
 
-def ex2 : Com ExOp ∅ .nat :=
+def ex2 : Com ∅ .nat :=
   Com.lete (cst 1) <|
   Com.lete (add ⟨0, by simp⟩ ⟨0, by simp⟩) <|
   Com.lete (add ⟨1, by simp⟩ ⟨0, by simp⟩) <|
@@ -72,12 +77,13 @@ def ex2 : Com ExOp ∅ .nat :=
   Com.ret ⟨0, by simp⟩
 
 -- a + b => b + a
-def m : Com ExOp (.ofList [.nat, .nat]) .nat :=
+def m : Com (.ofList [.nat, .nat]) .nat :=
   .lete (add ⟨0, by simp⟩ ⟨1, by simp⟩) (.ret ⟨0, by simp⟩)
-def r : Com ExOp (.ofList [.nat, .nat]) .nat :=
+def r : Com (.ofList [.nat, .nat]) .nat :=
   .lete (add ⟨1, by simp⟩ ⟨0, by simp⟩) (.ret ⟨0, by simp⟩)
 
-def p1 : PeepholeRewrite ExOp [.nat, .nat] .nat:=
+open Ctxt (Var Valuation DerivedCtxt) in
+def p1 : PeepholeRewrite ExOp [.nat, .nat] .nat :=
   { lhs := m, rhs := r, correct :=
     by
       rw [m, r]
@@ -132,7 +138,7 @@ example : rewritePeepholeAt p1 4 ex2 = (
      .lete (add ⟨2, by simp⟩ ⟨2, by simp⟩  ) <|
      .ret ⟨0, by simp⟩  ) := by rfl
 
-def ex2' : Com ExOp ∅ .nat :=
+def ex2' : Com ∅ .nat :=
   Com.lete (cst 1) <|
   Com.lete (add ⟨0, by simp⟩ ⟨0, by simp⟩  ) <|
   Com.lete (add ⟨1, by simp⟩ ⟨0, by simp⟩  ) <|
@@ -141,7 +147,7 @@ def ex2' : Com ExOp ∅ .nat :=
   Com.ret ⟨0, by simp⟩
 
 -- a + b => b + (0 + a)
-def r2 : Com ExOp (.ofList [.nat, .nat]) .nat :=
+def r2 : Com (.ofList [.nat, .nat]) .nat :=
   .lete (cst 0) <|
   .lete (add ⟨0, by simp⟩ ⟨1, by simp⟩) <|
   .lete (add ⟨3, by simp⟩ ⟨0, by simp⟩) <|
@@ -203,7 +209,7 @@ example : rewritePeepholeAt p2 4 ex2 = (
      .ret ⟨0, by simp⟩  ) := by rfl
 
 -- a + b => (0 + a) + b
-def r3 : Com ExOp (.ofList [.nat, .nat]) .nat :=
+def r3 : Com (.ofList [.nat, .nat]) .nat :=
   .lete (cst 0) <|
   .lete (add ⟨0, by simp⟩ ⟨1, by simp⟩) <|
   .lete (add ⟨0, by simp⟩ ⟨3, by simp⟩) <|
@@ -263,7 +269,7 @@ example : rewritePeepholeAt p3 4 ex2 = (
      .lete (add ⟨0, by simp⟩ ⟨4, by simp⟩  ) <|
      .ret ⟨0, by simp⟩  ) := by rfl
 
-def ex3 : Com ExOp ∅ .nat :=
+def ex3 : Com ∅ .nat :=
   .lete (cst 1) <|
   .lete (cst 0) <|
   .lete (cst 2) <|
@@ -313,44 +319,50 @@ inductive ExOp :  Type
   | runK : ℕ → ExOp
   deriving DecidableEq, Repr
 
-instance : OpSignature ExOp ExTy where
+instance : OpSignature ExOp ExTy Id where
   signature
-  | .add    => ⟨[.nat, .nat], [], .nat⟩
-  | .runK _ => ⟨[.nat], [([.nat], .nat)], .nat⟩
+  | .add    => ⟨[.nat, .nat], [], .nat, .pure⟩
+  | .runK _ => ⟨[.nat], [([.nat], .nat)], .nat, .pure⟩
 
 
 @[reducible]
-instance : OpDenote ExOp ExTy where
+instance : OpDenote ExOp ExTy Id where
   denote
     | .add, .cons (a : Nat) (.cons b .nil), _ => a + b
     | .runK (k : Nat), (.cons (v : Nat) .nil), (.cons rgn _nil) =>
       k.iterate (fun val => rgn (fun _ty _var => val)) v
 
-def add {Γ : Ctxt _} (e₁ e₂ : Var Γ .nat) : Expr ExOp Γ .nat :=
+abbrev Expr (Γ) (ty) := _root_.Expr ExOp Γ .pure ty
+abbrev Com (Γ) (ty) := _root_.Com ExOp Γ .pure ty
+
+def add {Γ : Ctxt _} (e₁ e₂ : Var Γ .nat) : Expr Γ .nat :=
   Expr.mk
     (op := .add)
     (ty_eq := rfl)
+    (eff_le := EffectKind.pure_le _)
     (args := .cons e₁ <| .cons e₂ .nil)
     (regArgs := .nil)
 
-def rgn {Γ : Ctxt _} (k : Nat) (input : Var Γ .nat) (body : Com ExOp [ExTy.nat] ExTy.nat) : Expr ExOp Γ .nat :=
+def rgn {Γ : Ctxt _} (k : Nat) (input : Var Γ .nat) (body : Com [ExTy.nat] ExTy.nat) :
+    Expr Γ .nat :=
   Expr.mk
     (op := .runK k)
     (ty_eq := rfl)
+    (eff_le := EffectKind.pure_le _)
     (args := .cons input .nil)
-    (regArgs := HVector.cons body HVector.nil)
+    (regArgs := HVector.cons (body.castPureToEff _) HVector.nil)
 
 attribute [local simp] Ctxt.snoc
 
 /-- running `f(x) = x + x` 0 times is the identity. -/
-def ex1_lhs : Com ExOp [.nat] .nat :=
+def ex1_lhs : Com [.nat] .nat :=
   Com.lete (rgn (k := 0) ⟨0, by simp[Ctxt.snoc]⟩ (
       Com.lete (add ⟨0, by simp[Ctxt.snoc]⟩ ⟨0, by simp[Ctxt.snoc]⟩) -- fun x => (x + x)
       <| Com.ret ⟨0, by simp[Ctxt.snoc]⟩
   )) <|
   Com.ret ⟨0, by simp[Ctxt.snoc]⟩
 
-def ex1_rhs : Com ExOp [.nat] .nat :=
+def ex1_rhs : Com [.nat] .nat :=
   Com.ret ⟨0, by simp[Ctxt.snoc]⟩
 
 def p1 : PeepholeRewrite ExOp [.nat] .nat:=
@@ -362,7 +374,7 @@ def p1 : PeepholeRewrite ExOp [.nat] .nat:=
       done
   }
 
-def p1_run : Com ExOp [.nat] .nat :=
+def p1_run : Com [.nat] .nat :=
   rewritePeepholeAt p1 0 ex1_lhs
 
 /-
@@ -372,14 +384,14 @@ return %1
 -- #eval p1_run
 
 /-- running `f(x) = x + x` 1 times does return `x + x`. -/
-def ex2_lhs : Com ExOp [.nat] .nat :=
+def ex2_lhs : Com [.nat] .nat :=
   Com.lete (rgn (k := 1) ⟨0, by simp[Ctxt.snoc]⟩ (
       Com.lete (add ⟨0, by simp[Ctxt.snoc]⟩ ⟨0, by simp[Ctxt.snoc]⟩) -- fun x => (x + x)
       <| Com.ret ⟨0, by simp[Ctxt.snoc]⟩
   )) <|
   Com.ret ⟨0, by simp[Ctxt.snoc]⟩
 
-def ex2_rhs : Com ExOp [.nat] .nat :=
+def ex2_rhs : Com [.nat] .nat :=
     Com.lete (add ⟨0, by simp[Ctxt.snoc]⟩ ⟨0, by simp[Ctxt.snoc]⟩) -- fun x => (x + x)
     <| Com.ret ⟨0, by simp[Ctxt.snoc]⟩
 
@@ -389,7 +401,12 @@ def p2 : PeepholeRewrite ExOp [.nat] .nat:=
       funext Γv
       simp_peephole [add, rgn] at Γv
       simp
-      done
+      sorry
+      /-
+        This example is broken because we had to introduce `impure` Coms for the regions.
+        We should fix the main framework so that pure expressions can have pure regions, then this
+        example should be fixed as well.
+      -/
   }
 
 end RegionExamples

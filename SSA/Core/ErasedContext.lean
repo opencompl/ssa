@@ -119,6 +119,15 @@ def toMap : Var Γ t → Var (Γ.map f) (f t)
 def cast {Γ : Ctxt Op} (h_eq : ty₁ = ty₂) : Γ.Var ty₁ → Γ.Var ty₂
   | ⟨i, h⟩ => ⟨i, h_eq ▸ h⟩
 
+def castCtxt {Γ : Ctxt Op} (h_eq : Γ = Δ) : Γ.Var ty → Δ.Var ty
+  | ⟨i, h⟩ => ⟨i, h_eq ▸ h⟩
+
+@[simp] lemma cast_rfl (v : Var Γ t) (h : t = t) : v.cast h = v := rfl
+
+@[simp] lemma castCtxt_rfl (v : Var Γ t) (h : Γ = Γ) : v.castCtxt h = v := rfl
+@[simp] lemma castCtxt_castCtxt (v : Var Γ t) (h₁ : Γ = Δ) (h₂ : Δ = Ξ) :
+    (v.castCtxt h₁).castCtxt h₂ = v.castCtxt (by simp [*]) := by subst h₁ h₂; simp
+
 /-- This is an induction principle that case splits on whether or not a variable
 is the last variable in a context. -/
 @[elab_as_elim]
@@ -191,7 +200,7 @@ def Hom.with [DecidableEq Ty] {Γ₁ Γ₂ : Ctxt Ty} (f : Γ₁.Hom Γ₂) {t :
     (v₁ : Γ₁.Var t) (v₂ : Γ₂.Var t) : Γ₁.Hom Γ₂ :=
   fun t' w =>
     if h : ∃ ty_eq : t = t', ty_eq ▸ w = v₁ then
-      h.fst ▸ v₂
+      v₂.cast h.fst
     else
       f w
 
@@ -207,6 +216,13 @@ def Hom.snocMap {Γ Γ' : Ctxt Ty} (f : Hom Γ Γ') {t : Ty} :
 abbrev Hom.snocRight {Γ Γ' : Ctxt Ty} (f : Hom Γ Γ') {t : Ty} : Γ.Hom (Γ'.snoc t) :=
   fun _ v => (f v).toSnoc
 
+/-- Remove a type from the domain (left) context -/
+def Hom.unSnoc (f : Hom (Γ.snoc t) Δ) : Hom Γ Δ :=
+  fun _ v => f v.toSnoc
+
+@[simp] lemma Hom.unSnoc_apply {Γ : Ctxt Ty} (f : Hom (Γ.snoc t) Δ) (v : Var Γ u) :
+    f.unSnoc v = f v.toSnoc := rfl
+
 
 instance {Γ : Ctxt Ty} : Coe (Γ.Var t) ((Γ.snoc t').Var t) := ⟨Ctxt.Var.toSnoc⟩
 
@@ -220,6 +236,14 @@ def Valuation (Γ : Ctxt Ty) : Type :=
 
 /-- A valuation for a context. Provide a way to evaluate every variable in a context. -/
 def Valuation.eval {Γ : Ctxt Ty} (VAL : Valuation Γ) ⦃t : Ty⦄ (v : Γ.Var t) : toType t :=
+    VAL v
+
+/-- A valuation for a context. Provide a way to evaluate every variable in a context. -/
+def Var.denote {Γ : Ctxt Ty} (VAL : Valuation Γ) ⦃t : Ty⦄ (v : Γ.Var t) : toType t :=
+    VAL v
+
+/-- A valuation for a context. Provide a way to evaluate every variable in a context. -/
+def Ctxt.Var.lookupValuation {Γ : Ctxt Ty} ⦃t : Ty⦄ (v : Γ.Var t) (VAL : Valuation Γ)  : toType t :=
     VAL v
 
 /-- Make a valuation for the empty context. -/
@@ -308,7 +332,34 @@ theorem Valuation.ofPair_snd [TyDenote Ty] {t₁ t₂ : Ty} (v₁: ⟦t₁⟧) (
 
 /-- transport/pullback a valuation along a context homomorphism. -/
 def Valuation.comap {Γi Γo : Ctxt Ty} (Γiv: Γi.Valuation) (hom : Ctxt.Hom Γo Γi) : Γo.Valuation :=
-  fun _to vo =>  Γiv (hom vo)
+  fun _to vo => Γiv (hom vo)
+
+@[simp] theorem Valuation.comap_snoc_snocMap {Γ Γ_out : Ctxt Ty}
+    (V : Γ_out.Valuation) {t} (x : ⟦t⟧) (map : Γ.Hom Γ_out) :
+    Valuation.comap (Valuation.snoc V x) (Ctxt.Hom.snocMap map)
+    = Valuation.snoc (Valuation.comap V map) x := by
+  funext t' v
+  cases v using Var.casesOn <;> rfl
+
+@[simp] lemma Valuation.comap_id {Γ : Ctxt Ty} (Γv : Valuation Γ) : comap Γv Hom.id = Γv := rfl
+@[simp] lemma Valuation.comap_snoc_snocRight {Γ Δ : Ctxt Ty} (Γv : Valuation Γ) (f : Hom Δ Γ) :
+    comap (Γv.snoc x) (f.snocRight) = comap Γv f :=
+  rfl
+
+/-- Reassign the variable var to value val in context ctxt -/
+def Valuation.reassignVar [DecidableEq Ty] {t : Ty} {Γ : Ctxt Ty}
+    (V : Γ.Valuation) (var : Var Γ t) (val : toType t) : Γ.Valuation :=
+  fun tneedle vneedle =>
+    if h : ∃ h : t = tneedle, h ▸ vneedle = var
+    then h.fst ▸ val
+    else V vneedle
+
+@[simp] lemma Valuation.comap_with [DecidableEq Ty] {Γ Δ : Ctxt Ty}
+    {Γv : Valuation Γ} {map : Δ.Hom Γ} {v : Var Δ ty} {w : Var Γ ty} :
+    Γv.comap (map.with v w) = (Γv.comap map).reassignVar v (Γv w) := by
+  funext t' v'
+  simp only [comap, Hom.with, reassignVar]
+  split_ifs <;> aesop
 
 /-- Recursion principle for valuations in terms of `Valuation.nil` and `Valuation.snoc` -/
 @[eliminator, elab_as_elim]
@@ -321,12 +372,29 @@ def Valuation.recOn {motive : ∀ {Γ : Ctxt Ty}, Γ.Valuation → Sort*}
   · exact (eq_nil V).symm ▸ nil
   · exact snoc_toSnoc_last V ▸ (snoc (fun _ v' => V v'.toSnoc) (V <|.last ..) (ih _))
 
+def Valuation.cast {Γ Δ : Ctxt Ty} (h : Γ = Δ) (V : Valuation Γ) : Valuation Δ :=
+  fun _ v => V <| v.castCtxt h.symm
+
+@[simp] lemma Valuation.cast_rfl {Γ : Ctxt Ty} (h : Γ = Γ) (V : Valuation Γ) : V.cast h = V := rfl
+
+/-- reassigning a variable to the same value that has been looked up is identity. -/
+theorem Valuation.reassignVar_eq_of_lookup [DecidableEq Ty]
+    {Γ : Ctxt Ty} {V : Γ.Valuation} {var : Var Γ t} :
+    (V.reassignVar var (V var)) = V := by
+  funext t' v
+  simp [reassignVar]
+  intros h x
+  subst h
+  subst x
+  rfl
+
+
 end Valuation
 
 
 /- ## VarSet -/
 
-/-- A `Ty`-indexed family of sets of variables in context `Γ` -/
+/-- `VarSet Γ` is the type of sets of variables from context `Γ` -/
 abbrev VarSet (Γ : Ctxt Ty) : Type :=
   Finset (Σ t, Γ.Var t)
 
@@ -355,7 +423,8 @@ instance : Repr (Var Γ t) where
 end Var
 
 /-
-## Context difference
+## Context difference, notes that Γ1[i] = Γ2[i + d].
+   This means that Γ2 has a new prefix of 'd' elements before getting to Γ1
 -/
 
 @[simp]
@@ -393,6 +462,10 @@ def unSnoc (d : Diff (Γ₁.snoc t) Γ₂) : Diff Γ₁ Γ₂ :=
     rw[←h_get_d h_get, Nat.add_assoc, Nat.add_comm 1, get?]
   ⟩
 
+/-!
+### `toMap`
+-/
+
 /-- Mapping over contexts does not change their difference -/
 @[coe]
 def toMap (d : Diff Γ₁ Γ₂) : Diff (Γ₁.map f) (Γ₂.map f) :=
@@ -402,6 +475,10 @@ def toMap (d : Diff Γ₁ Γ₂) : Diff (Γ₁.map f) (Γ₂.map f) :=
       forall_apply_eq_imp_iff₂] at h_get_d ⊢
     exact fun t h => ⟨t, h_get_d h, rfl⟩
   ⟩
+
+/-!
+### `append`
+-/
 
 theorem append_valid {Γ₁ Γ₂ Γ₃  : Ctxt Ty} {d₁ d₂ : Nat} :
   Diff.Valid Γ₁ Γ₂ d₁ →  Diff.Valid Γ₂ Γ₃ d₂ → Diff.Valid Γ₁ Γ₃ (d₁ + d₂) := by
@@ -414,6 +491,10 @@ theorem append_valid {Γ₁ Γ₂ Γ₃  : Ctxt Ty} {d₁ d₂ : Nat} :
 def append (d₁ : Diff Γ₁ Γ₂) (d₂ : Diff Γ₂ Γ₃) : Diff Γ₁ Γ₃ :=
   {val := d₁.val + d₂.val,  property := append_valid d₁.property d₂.property}
 
+/-!
+### `toHom`
+-/
+
 /-- Adding the difference of two contexts to variable indices is a context mapping -/
 def toHom (d : Diff Γ₁ Γ₂) : Hom Γ₁ Γ₂ :=
   fun _ v => ⟨v.val + d.val, d.property v.property⟩
@@ -421,25 +502,28 @@ def toHom (d : Diff Γ₁ Γ₂) : Hom Γ₁ Γ₂ :=
 theorem Valid.of_succ {Γ₁ Γ₂ : Ctxt Ty} {d : Nat} (h_valid : Valid Γ₁ (Γ₂.snoc t) (d+1)) :
     Valid Γ₁ Γ₂ d := by
   intro i t h_get
-  simp[←h_valid h_get, snoc, List.get?]
+  simp [←h_valid h_get, snoc, List.get?]
 
-theorem toHom_succ {Γ₁ Γ₂ : Ctxt Ty} {d : Nat} (h : Valid Γ₁ (Γ₂.snoc t) (d+1)) :
+
+lemma toHom_succ {Γ₁ Γ₂ : Ctxt Ty} {d : Nat} (h : Valid Γ₁ (Γ₂.snoc t) (d+1)) :
     toHom ⟨d+1, h⟩ = (toHom ⟨d, Valid.of_succ h⟩).snocRight := by
   rfl
 
-@[simp]
-theorem toHom_zero {Γ : Ctxt Ty} {h : Valid Γ Γ 0} :
+@[simp] lemma toHom_zero {Γ : Ctxt Ty} {h : Valid Γ Γ 0} :
     toHom ⟨0, h⟩ = Hom.id := by
   rfl
 
-@[simp]
-theorem toHom_unSnoc {Γ₁ Γ₂ : Ctxt Ty} (d : Diff (Γ₁.snoc t) Γ₂) :
+@[simp] lemma toHom_unSnoc {Γ₁ Γ₂ : Ctxt Ty} (d : Diff (Γ₁.snoc t) Γ₂) :
     toHom (unSnoc d) = fun _ v => (toHom d) v.toSnoc := by
   unfold unSnoc Var.toSnoc toHom
   simp
   funext x v
   congr 1
   rw [Nat.add_assoc, Nat.add_comm 1]
+
+/-!
+### add
+-/
 
 def add : Diff Γ₁ Γ₂ → Diff Γ₂ Γ₃ → Diff Γ₁ Γ₃
   | ⟨d₁, h₁⟩, ⟨d₂, h₂⟩ => ⟨d₁ + d₂, fun h => by
@@ -448,6 +532,9 @@ def add : Diff Γ₁ Γ₂ → Diff Γ₂ Γ₃ → Diff Γ₁ Γ₃
     ⟩
 
 instance : HAdd (Diff Γ₁ Γ₂) (Diff Γ₂ Γ₃) (Diff Γ₁ Γ₃) := ⟨add⟩
+
+def cast (h₁ : Γ = Γ') (h₂ : Δ = Δ') : Diff Γ Δ → Diff Γ' Δ'
+  | ⟨n, h⟩ => ⟨n, by subst h₁ h₂; exact h⟩
 
 end Diff
 
@@ -491,6 +578,38 @@ instance {Γ' : DerivedCtxt Γ} : Coe (Ctxt.Var Γ t) (Ctxt.Var (Γ' : Ctxt Ty) 
   coe v := Γ'.diff.toHom v
 
 end DerivedCtxt
+
+/-! ## `dropUntil` -/
+
+/-- `Γ.dropUntil v` is the largest prefix of context `Γ` that no longer contains variable `v` -/
+def dropUntil (Γ : Ctxt Ty) (v : Var Γ ty) : Ctxt Ty :=
+  List.drop (v.val + 1) Γ
+
+@[simp] lemma dropUntil_last   : dropUntil (snoc Γ ty) (Var.last Γ ty) = Γ := rfl
+@[simp] lemma dropUntil_toSnoc : dropUntil (snoc Γ ty) (Var.toSnoc v) = dropUntil Γ v := rfl
+
+/-- The difference between `Γ.dropUntil v` and `Γ` is exactly `v.val + 1` -/
+def dropUntilDiff {Γ : Ctxt Ty} {v : Var Γ ty} : Diff (Γ.dropUntil v) Γ :=
+  ⟨v.val+1, by
+    intro i _ h
+    induction Γ
+    case nil => exact v.emptyElim
+    case snoc Γ _ ih =>
+      cases v using Var.casesOn
+      · simp at h ⊢
+        apply ih h
+      · simpa using h
+  ⟩
+
+/-- Context homomorphism from `(Γ.dropUntil v)` to `Γ`, see also `dropUntilDiff` -/
+abbrev dropUntilHom : Hom (Γ.dropUntil v) Γ := dropUntilDiff.toHom
+
+@[simp] lemma dropUntilHom_last : dropUntilHom (v := Var.last Γ ty) = Hom.id.snocRight := rfl
+@[simp] lemma dropUntilHom_toSnoc {v : Var Γ t} :
+  dropUntilHom (v := v.toSnoc (t' := t')) = (dropUntilHom (v:=v)).snocRight := rfl
+
+instance : CoeOut (Var (Γ.dropUntil v) ty) (Var Γ ty) where
+  coe v := dropUntilDiff.toHom v
 
 
 end Ctxt

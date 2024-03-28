@@ -14,7 +14,8 @@ namespace MLIR.AST
 open Std (BitVec)
 open Ctxt
 
-instance {Op Ty : Type} [OpSignature Op Ty] {t : Ty} {Γ : Ctxt Ty} {Γ' : DerivedCtxt Γ} : Coe (Expr Op Γ t) (Expr Op Γ'.ctxt t) where
+instance {Op Ty : Type} [OpSignature Op Ty m] {t : Ty} {Γ : Ctxt Ty} {Γ' : DerivedCtxt Γ} :
+    Coe (Expr Op Γ eff t) (Expr Op Γ'.ctxt eff t) where
   coe e := e.changeVars Γ'.diff.toHom
 
 
@@ -27,17 +28,17 @@ section Monads
   errors.
 -/
 
-abbrev ExceptM  Op [OpSignature Op Ty] := Except (TransformError Ty)
-abbrev BuilderM Op [OpSignature Op Ty] := StateT NameMapping (ExceptM Op)
-abbrev ReaderM  Op [OpSignature Op Ty] := ReaderT NameMapping (ExceptM Op)
+abbrev ExceptM  Op [OpSignature Op Ty m] := Except (TransformError Ty)
+abbrev BuilderM Op [OpSignature Op Ty m] := StateT NameMapping (ExceptM Op)
+abbrev ReaderM  Op [OpSignature Op Ty m] := ReaderT NameMapping (ExceptM Op)
 
-instance {Op : Type} [OpSignature Op Ty] : MonadLift (ReaderM Op) (BuilderM Op) where
+instance {Op : Type} [OpSignature Op Ty m] : MonadLift (ReaderM Op) (BuilderM Op) where
   monadLift x := do (ReaderT.run x (←get) : ExceptM ..)
 
-instance {Op : Type} [OpSignature Op Ty] : MonadLift (ExceptM Op) (ReaderM Op) where
+instance {Op : Type} [OpSignature Op Ty m] : MonadLift (ExceptM Op) (ReaderM Op) where
   monadLift x := do return ←x
 
-def BuilderM.runWithEmptyMapping {Op : Type} [OpSignature Op Ty] (k : BuilderM Op α) : ExceptM Op α :=
+def BuilderM.runWithEmptyMapping {Op : Type} [OpSignature Op Ty m] (k : BuilderM Op α) : ExceptM Op α :=
   Prod.fst <$> StateT.run k []
 
 end Monads
@@ -49,18 +50,18 @@ end Monads
   - Third, using both type and expression conversion, declare how to transform returns with `TransformReturn`.
   - These three automatically give an instance of `TransformDialect`.
 -/
-class TransformTy (Op : Type) (Ty : outParam (Type)) (φ : outParam Nat) [OpSignature Op Ty]  where
+class TransformTy (Op : Type) (Ty : outParam (Type)) (φ : outParam Nat) [OpSignature Op Ty m]  where
   mkTy   : MLIRType φ → ExceptM Op Ty
 
-class TransformExpr (Op : Type) (Ty : outParam (Type)) (φ : outParam Nat) [OpSignature Op Ty] [TransformTy Op Ty φ]  where
-  mkExpr   : (Γ : List Ty) → (opStx : AST.Op φ) → ReaderM Op (Σ ty, Expr Op Γ ty)
+class TransformExpr (Op : Type) (Ty : outParam (Type)) (φ : outParam Nat) [OpSignature Op Ty m] [TransformTy Op Ty φ]  where
+  mkExpr   : (Γ : List Ty) → (opStx : AST.Op φ) → ReaderM Op (Σ ty, Expr Op Γ eff ty)
 
 class TransformReturn (Op : Type) (Ty : outParam (Type)) (φ : outParam Nat)
-  [OpSignature Op Ty] [TransformTy Op Ty φ] where
-  mkReturn : (Γ : List Ty) → (opStx : AST.Op φ) → ReaderM Op (Σ ty, Com Op Γ ty)
+  [OpSignature Op Ty m] [TransformTy Op Ty φ] where
+  mkReturn : (Γ : List Ty) → (opStx : AST.Op φ) → ReaderM Op (Σ ty, Com Op Γ eff ty)
 
 /- instance of the transform dialect, plus data needed about `Op` and `Ty`. -/
-variable {Op Ty φ} [OpSignature Op Ty] [DecidableEq Ty] [DecidableEq Op]
+variable {Op Ty φ} [OpSignature Op Ty m] [DecidableEq Ty] [DecidableEq Op]
 
 /--
   Add a new variable to the context, and record it's (absolute) index in the name mapping
@@ -151,7 +152,7 @@ private def declareBindings [TransformTy Op Ty φ] (Γ : Ctxt Ty) (vals : List (
 private def mkComHelper
   [TransformTy Op Ty φ] [instTransformExpr : TransformExpr Op Ty φ] [instTransformReturn : TransformReturn Op Ty φ]
   (Γ : Ctxt Ty) :
-    List (MLIR.AST.Op φ) → BuilderM Op (Σ (ty : _), Com Op Γ ty)
+    List (MLIR.AST.Op φ) → BuilderM Op (Σ (ty : _), Com Op Γ eff ty)
   | [retStx] => do
       instTransformReturn.mkReturn Γ retStx
   | lete::rest => do
@@ -165,7 +166,7 @@ private def mkComHelper
   | [] => throw <| .generic "Ill-formed (empty) block"
 
 def mkCom [TransformTy Op Ty φ] [TransformExpr Op Ty φ] [TransformReturn Op Ty φ]
-  (reg : MLIR.AST.Region φ) : ExceptM Op  (Σ (Γ : Ctxt Ty) (ty : Ty), Com Op Γ ty) :=
+  (reg : MLIR.AST.Region φ) : ExceptM Op  (Σ (Γ : Ctxt Ty) (ty : Ty), Com Op Γ eff ty) :=
   match reg.ops with
   | [] => throw <| .generic "Ill-formed region (empty)"
   | coms => BuilderM.runWithEmptyMapping <| do

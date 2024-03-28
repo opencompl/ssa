@@ -243,8 +243,8 @@ def MOp.outTy : MOp φ → MTy φ
   .bitvec w
 | .icmp _ _ => .bitvec 1
 
-instance : OpSignature (MOp φ) (MTy φ) where
-  signature op := ⟨op.sig, [], op.outTy⟩
+instance : OpSignature (MOp φ) (MTy φ) Id where
+  signature op := ⟨op.sig, [], op.outTy, .pure⟩
 
 @[simp]
 def Op.denote (o : Op) (arg : HVector TyDenote.toType (OpSignature.sig o)) :
@@ -272,7 +272,7 @@ def Op.denote (o : Op) (arg : HVector TyDenote.toType (OpSignature.sig o)) :
     select? ocond otrue ofalse
   | Op.icmp c _ => pairBind (icmp? c) arg.toPair
 
-instance : OpDenote Op Ty := ⟨
+instance : OpDenote Op Ty Id := ⟨
   fun o args _ => Op.denote o args
 ⟩
 

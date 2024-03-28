@@ -694,7 +694,7 @@ def Op.outTy : Op q n → Ty q n
 def Op.signature : Op q n → Signature (Ty q n) :=
   fun o => {sig := Op.sig q n o, outTy := Op.outTy q n o, regSig := []}
 
-instance : OpSignature (Op q n) (Ty q n) := ⟨Op.signature q n⟩
+instance : OpSignature (Op q n) (Ty q n) Id := ⟨Op.signature q n⟩
 
 @[simp]
 noncomputable def Op.denote (o : Op q n)
